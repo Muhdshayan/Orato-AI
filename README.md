@@ -20,7 +20,6 @@ ORATO-AI/
 │   ├── content_relevance/     # Content relevance and LLM-assisted topic verification
 │   ├── score_aggregator/      # Composite scoring and feedback aggregation logic
 │   ├── llm/                   # Large Language Model custom scripts/utilities
-│   ├── preprocessing/         # Audio, video preprocessing, normalization
 │   ├── utils/                 # Shared helpers/utilities
 │   ├── requirements.txt       # Python dependencies for all modules
 │   └── README.md              # Detailed module documentation
