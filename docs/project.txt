@@ -1,0 +1,260 @@
+ey Sections and Content Breakdown
+
+Chapter 1: Introduction (Pages 6-8)
+
+Overview: Describes OratoAI as a tool to help students improve presentation skills by analyzing videos and generating reports. It bridges the lack of scalable coaching in Pakistan.
+Intended Readers: Includes student developers, supervisors/evaluators, testers, technical writers, academic stakeholders (teachers/mentors), and end-users (Pakistani students). Emphasizes technical, academic, and user-focused audiences.
+Problem Statement: Highlights challenges like limited feedback due to instructor workloads, poor performance of international tools on Pakistani accents, and fewer practice opportunities. OratoAI offers automated, culturally aware analysis.
+Scope: Limited to MP4 video uploads, server-side preprocessing, pose/gesture analysis, accent-aware ASR, content relevance checks, feedback aggregation, and basic privacy controls. Out-of-scope: real-time feedback, mobile apps, institutional integrations.
+High-Level Modules: Video Upload & Preprocessing, Computer Vision (Pose & Gesture), Accent-Aware ASR & Speech Metrics, Content Relevance & Verification (LLM-assisted), Aggregation & Feedback Generation, Dashboard & Reporting, Backend Services (REST API, queues, storage, DB).
+User Classes:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+User ClassDescriptionStudentPrimary user: Uploads videos, receives feedback via dashboard. Seeks actionable tips on vocal clarity, body language, and content.AdministratorManages system settings, policies, and operations. No access to user content.
+
+
+
+Chapter 2: Project Requirements (Pages 9-22)
+
+Use Cases / Event-Response / Storyboarding (Pages 10-13):
+
+Use Case Diagram: Shows actors (User, System) and cases like User Registration, Upload Video, Analyze Pose, etc.
+Primary Use Cases: Summarized in a table (e.g., User uploads video, System analyzes speech).
+Fully Dressed Use Cases: Detailed scenarios for 10 use cases (UC-01 to UC-10), including actors, descriptions, pre/postconditions, main flows, and extensions (e.g., error handling).
+Event-Response Table: Lists system responses to events like video upload (validate/store), errors (log/notify).
+Storyboarding: Step-by-step user flow (login → upload → processing → report → dashboard → privacy → logout).
+
+
+Functional Requirements (Pages 14-16): Organized by module with FR numbers (Must/Should/Could priorities).
+
+User Management: Registration, role-based access, privacy.
+Video Upload: Secure MP4 uploads, validation, preprocessing.
+Computer Vision: Pose keypoints, gesture metrics, motion analysis.
+ASR & Speech: Transcripts, filler words, speech rate, fluency/articulation.
+Content Relevance: Topic matching, factual checks.
+Aggregation: Scoring, reports, exports.
+Backend: Queuing, retention, admin controls.
+
+
+Non-Functional Requirements (Pages 16-18): Measurable targets.
+
+Reliability: Recovery in 30 mins, alerts.
+Usability: Upload-to-feedback in 5 mins, 80% satisfaction.
+Performance: 3-min processing for 2-min video, <500ms API responses.
+Security: Encryption, consent, audits.
+Maintainability: Modularity, 70% test coverage.
+
+
+Domain Model (Pages 18-21): Entities, attributes, relationships, ER diagram, and class diagram. (Detailed schema below.)
+Traceability Notes: Matrix linking requirements to tests/design.
+Acceptance Criteria: All critical FRs pass tests, performance benchmarks met, privacy compliant.
+
+
+Chapter 3: System Overview (Pages 23-37)
+
+Overview: Reiterates workflow: Upload → Preprocess → Analyze (CV/ASR/LLM) → Aggregate → Report/Dashboard.
+Architectural Design (Page 24): Diagram showing frontend (React), backend (FastAPI/Python), DB (PostgreSQL), storage (MinIO), ML pipelines.
+Design Models (Pages 25-36):
+
+Activity Diagram: Multi-page workflow from login to deletion.
+Class Diagram: Classes like User, VideoSubmission, Transcript, etc.
+Sequence Diagrams: 10 diagrams for flows like registration, upload, analysis.
+State Transition Diagram: States like Queued → Processing → Done/Failed.
+
+
+Data Design (Page 37): Uses React (frontend), FastAPI (backend), PostgreSQL (DB with JSONB for semi-structured data), MinIO (object storage for media), Redis (caching/queues). Entities stored relationally with FKs.
+
+
+References (Page 38): Three citations on AI deployment, content detection, and accent-aware ASR.
+Lists of Figures/Tables (Pages 4-5): Indexes diagrams and tables.
+
+The report emphasizes modularity, privacy (GDPR-like), and cultural adaptation. It's a design document for an MVP, focusing on feasibility and testing.
+PostgreSQL Database Schema from the Report
+The report describes the database in Section 3.3 (Data Design) as using PostgreSQL for relational data (with JSON/JSONB for flexible fields like segments or keypoints). The schema is derived from Section 2.4 (Domain Model), which lists entities, key attributes, and relationships. I've translated this into a PostgreSQL-style schema (CREATE TABLE statements) based on the provided details. Primary keys (PK) are UUIDs or strings, foreign keys (FK) enforce relationships. JSONB is used for complex/nested data as mentioned.
+sql-- Users Table
+CREATE TABLE users (
+    user_id VARCHAR PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    email VARCHAR UNIQUE NOT NULL,
+    role ENUM('USER', 'ADMIN') NOT NULL,
+    registration_date DATE NOT NULL
+);
+
+-- VideoSubmissions Table
+CREATE TABLE video_submissions (
+    submission_id VARCHAR PRIMARY KEY,
+    user_id VARCHAR REFERENCES users(user_id) ON DELETE CASCADE,
+    filename VARCHAR NOT NULL,
+    filesize BIGINT NOT NULL,
+    uploaded_at DATE NOT NULL,
+    declared_topic VARCHAR,
+    retention_expiry DATE
+);
+
+-- ProcessingJobs Table
+CREATE TABLE processing_jobs (
+    job_id VARCHAR PRIMARY KEY,
+    submission_id VARCHAR UNIQUE REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
+    status ENUM('QUEUED', 'PROCESSING', 'DONE', 'FAILED') NOT NULL,
+    enqueued_at DATE NOT NULL,
+    completed_at DATE,
+    error_code VARCHAR
+);
+
+-- Transcripts Table
+CREATE TABLE transcripts (
+    transcript_id VARCHAR PRIMARY KEY,
+    submission_id VARCHAR UNIQUE REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
+    text TEXT NOT NULL,
+    segments JSONB,  -- e.g., array of timestamped segments
+    asr_confidence FLOAT,
+    asr_metadata JSONB
+);
+
+-- CVArtifacts Table
+CREATE TABLE cv_artifacts (
+    artifact_id VARCHAR PRIMARY KEY,
+    submission_id VARCHAR REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
+    frame_index INTEGER NOT NULL,
+    keypoints_json JSONB NOT NULL,
+    face_angle FLOAT,
+    evidence_frame_url VARCHAR
+);
+
+-- AnalysisReports Table
+CREATE TABLE analysis_reports (
+    report_id VARCHAR PRIMARY KEY,
+    submission_id VARCHAR UNIQUE REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
+    overall_score FLOAT,
+    relevance_score FLOAT,
+    tips_json JSONB,
+    report_url VARCHAR,
+    generated_at DATE
+);
+
+-- ScoreCards Table
+CREATE TABLE score_cards (
+    scorecard_id VARCHAR PRIMARY KEY,
+    report_id VARCHAR REFERENCES analysis_reports(report_id) ON DELETE CASCADE,
+    category VARCHAR NOT NULL,
+    score FLOAT NOT NULL,
+    max_score FLOAT NOT NULL,
+    weight FLOAT NOT NULL,
+    feedback TEXT,
+    improvements JSONB
+);
+
+-- SpeechMetrics Table
+CREATE TABLE speech_metrics (
+    metrics_id VARCHAR PRIMARY KEY,
+    transcript_id VARCHAR UNIQUE REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
+    filler_word_count INTEGER,
+    speech_rate FLOAT,
+    pause_durations JSONB,  -- e.g., array of pause timestamps/durations
+    fluency_score FLOAT,
+    articulation_score FLOAT
+);
+
+-- PostureMetrics Table
+CREATE TABLE posture_metrics (
+    posture_id VARCHAR PRIMARY KEY,
+    artifact_id VARCHAR UNIQUE REFERENCES cv_artifacts(artifact_id) ON DELETE CASCADE,
+    slouch_duration FLOAT,
+    head_orientation FLOAT,
+    shoulder_alignment FLOAT,
+    posture_score FLOAT
+);
+
+-- GestureMetrics Table
+CREATE TABLE gesture_metrics (
+    gesture_id VARCHAR PRIMARY KEY,
+    artifact_id VARCHAR UNIQUE REFERENCES cv_artifacts(artifact_id) ON DELETE CASCADE,
+    hand_gesture_count INTEGER,
+    gesture_velocity FLOAT,
+    movement_consistency FLOAT,
+    gesture_score FLOAT
+);
+
+-- ContentRelevance Table
+CREATE TABLE content_relevance (
+    content_id VARCHAR PRIMARY KEY,
+    transcript_id VARCHAR UNIQUE REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
+    topic_match_score FLOAT,
+    off_topic_segments JSONB,
+    factual_accuracy FLOAT,
+    evidence_snippets JSONB
+);
+Notes on Schema:
+
+Relationships: One-to-many (e.g., User to VideoSubmission), one-to-one (e.g., VideoSubmission to Transcript).
+Storage: Structured fields use VARCHAR/INTEGER/FLOAT/DATE/ENUM; semi-structured (e.g., keypoints, segments) use JSONB for querying flexibility.
+Integrity: FKs with ON DELETE CASCADE ensure data cleanup (e.g., deleting a user removes their submissions).
+This is inferred from the report's textual ER diagram and attributes. Actual implementation might include indexes, triggers, or extensions for performance/privacy.
+
+Detailed Explanation of the ASR Module: Fluency and Pace
+The ASR (Automatic Speech Recognition) module is detailed in Sections 1.4, 2.2.4, 2.1.3.5, and 3 (e.g., FR10-FR12, UC-05). It's part of the "Accent-Aware ASR & Speech Metrics" module, which processes extracted audio to generate timestamped transcripts and metrics. It's optimized for Pakistani English accents (e.g., via customized models like those in reference [3]). The module uses ASR models to transcribe speech, then analyzes it for quality metrics.
+Pace (Speech Rate)
+
+Definition from Report: Pace refers to "speech rate," calculated as words per minute (WPM) or syllables per second. It's a "Must" requirement (FR11) and includes timestamps for events.
+How It's Calculated (Detailed Explanation):
+
+Input: The audio stream (extracted during preprocessing, UC-03) is fed into an accent-aware ASR model (e.g., fine-tuned on Pakistani English datasets to handle variations like rolled 'r's or vowel shifts).
+Transcription: The ASR generates a timestamped transcript (e.g., "Hello [0:01-0:02], world [0:02-0:03]"), logging confidence scores for each segment.
+Rate Computation: Speech rate is derived by dividing the total word count (from the clean transcript) by the total speaking duration (excluding pauses). Formula:
+Speech Rate (WPM) = (Total Words) / (Total Speaking Time in Minutes).
+
+Pauses are detected as silences >0.5-1 second (stored in pause_durations JSONB).
+Example: If a 2-minute video has 200 words and 20 seconds of pauses, effective speaking time is 100 seconds (1.67 mins), so rate = 200 / 1.67 ≈ 120 WPM.
+
+
+Thresholds and Feedback: Compared to norms (e.g., ideal 120-150 WPM for presentations). Too fast (>160 WPM) might indicate rushing; too slow (<100 WPM) suggests hesitation. Low-confidence segments (e.g., due to accent mismatches) are flagged.
+Storage/Output: Stored in SpeechMetrics table (speech_rate FLOAT). In reports, it's visualized with tips like "Slow down in segments [timestamps]" if pace varies.
+Extensions/Edge Cases: If speech is unrecognized (low confidence), segments are flagged for manual review. This ensures cultural adaptation, as Pakistani accents might affect rate detection in standard models.
+
+
+
+Fluency (Fluency and Articulation Assessment)
+
+Definition from Report: Fluency is a "Should" requirement (FR12), assessing "fluency level" and "articulation clarity." It measures smooth, natural speech flow without disruptions.
+How It's Calculated (Detailed Explanation):
+
+Input: Builds on the timestamped transcript from ASR.
+Components Analyzed:
+
+Filler Words: Counts words like "um," "uh," "like" (filler_word_count INTEGER in SpeechMetrics). High counts reduce fluency score.
+Pauses: Analyzes pause_durations (JSONB array, e.g., [{"start": 5.2, "duration": 1.5}]). Excessive/long pauses (>2-3 seconds) indicate hesitation.
+Articulation: Measures clarity via ASR confidence scores and phonetic analysis (e.g., how well consonants/vowels are pronounced, tuned for accents).
+Flow Metrics: Detects repetitions, false starts, or disfluencies using ML (e.g., n-gram analysis or neural models like BERT for smoothness).
+
+
+Scoring Formula: Fluency Score (FLOAT, 0-100) = Weighted average:
+
+40% based on filler rate (e.g., fillers per 100 words <5 = high score).
+30% on pause frequency/duration (e.g., average pause <1 sec = good).
+20% on articulation (e.g., average ASR confidence >0.85).
+10% on overall disfluency (e.g., repetition detection via edit distance on transcript).
+Example: If fillers=10%, pauses=15% of time, confidence=0.9, disfluency low → Score ≈ 85/100.
+
+
+Thresholds and Feedback: Ideal fluency >80%; low scores trigger tips like "Reduce fillers at [timestamps]" or "Practice articulation for clearer enunciation." Culturally tuned to ignore accent-induced "disfluencies" (e.g., code-switching in Pakistani English).
+Storage/Output: Stored in SpeechMetrics (fluency_score, articulation_score FLOAT). Aggregated into reports with annotated transcripts.
+Extensions/Edge Cases: If audio quality is poor, fluency is flagged as incomplete. This is optional ("Should"), so MVP might prioritize basic metrics.
+
+
+
+The ASR module integrates with aggregation (UC-07) for overall scores and uses tools like Whisper (for ASR) or custom models. Feedback is actionable, e.g., "Your pace is 140 WPM—aim for 120 to improve clarity." If needed, I can expand on other modules!

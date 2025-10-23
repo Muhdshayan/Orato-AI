@@ -1,1 +1,32 @@
-#place ignored files and directories here
+# Python Virtual Environments
+venv/
+venv_asr/
+env/
+ENV/
+*.pyc
+__pycache__/
+
+# Environment variables
+
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python cache
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MinIO data
+minio-data/
+
+# Media files (optional - uncomment if needed)
+# *.mp4
+# *.wav
