@@ -8,7 +8,7 @@ import TranscriptView from './components/TranscriptView';
 import Header from './components/Header';
 import AuthForm from './components/AuthForm';
 import ProtectedRoute from './components/ProtectedRoute';
-import { FileText, X } from 'lucide-react';
+import { FileText, X, ChevronRight } from 'lucide-react';
 import './index.css';
 
 function AppContent() {
@@ -53,66 +53,34 @@ function AppContent() {
         <Toaster position="top-right" reverseOrder={false} />
         <Header user={user} onSignOut={handleSignOut} />
         
-        {/* Session Info Bar */}
+        {/* Session Info Bar - Revamped */}
         {showSessionInfo && isAuthenticated && (
-          <div style={{
-            background: 'linear-gradient(45deg, #28a745, #20c997)',
-            color: 'white',
-            padding: '10px 20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="session-info-bar">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <FileText size={20} />
               <span>
-                <strong>Active Session:</strong> Video uploaded and processed
+                <strong>Active Session:</strong> Your presentation is ready for review.
               </span>
             </div>
             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
               <button
                 onClick={() => window.location.href = `/status/${submissionId}`}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  color: 'white',
-                  padding: '5px 15px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
+                title="View Processing Status"
               >
-                View Status
+                View Status <ChevronRight size={16} />
               </button>
               <button
                 onClick={() => window.location.href = `/transcript/${submissionId}`}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  color: 'white',
-                  padding: '5px 15px',
-                  borderRadius: '4px',
-                  cursor: 'pointer'
-                }}
+                title="View Transcript"
               >
-                View Transcript
+                View Transcript <ChevronRight size={16} />
               </button>
               <button
                 onClick={clearSession}
-                style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  color: 'white',
-                  padding: '5px 10px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}
+                title="Clear Session"
+                style={{ padding: '5px' }} // Make close button smaller
               >
                 <X size={16} />
-                Clear Session
               </button>
             </div>
           </div>

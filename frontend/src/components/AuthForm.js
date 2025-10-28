@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { User, Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
+import { User, Mail, Lock, Eye, EyeOff, Loader, Bot } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
+  // --- ALL LOGIC IS UNCHANGED ---
   const navigate = useNavigate();
   const { signin, signup } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
@@ -19,15 +20,12 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
 
   const isSignup = mode === 'signup';
 
-  // Handle form input changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-    
-    // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -36,49 +34,38 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
     }
   };
 
-  // Validate form data
   const validateForm = () => {
     const newErrors = {};
-
     if (isSignup && !formData.name.trim()) {
       newErrors.name = 'Name is required';
     } else if (isSignup && formData.name.trim().length < 2) {
       newErrors.name = 'Name must be at least 2 characters';
     }
-
     if (!formData.email.trim()) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
     }
-
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-
     if (isSignup && formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
     if (!validateForm()) {
       return;
     }
-
     setIsLoading(true);
-    
     try {
       let response;
-      
       if (isSignup) {
         response = await signup(
           formData.name.trim(),
@@ -93,15 +80,10 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
         );
         toast.success('Welcome back!');
       }
-      
-      // Call success callback if provided
       if (onAuthSuccess) {
         onAuthSuccess(response.user);
       }
-      
-      // Navigate to home page
       navigate('/');
-      
     } catch (error) {
       console.error('Auth error:', error);
       toast.error(error.message || 'Authentication failed');
@@ -110,20 +92,25 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
     }
   };
 
-  // Toggle password visibility
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
+  // --- END OF UNCHANGED LOGIC ---
 
+
+  // --- REVAMPED JSX ---
   return (
     <div className="auth-form-container">
       <div className="auth-form">
         <div className="auth-header">
+          <span className="auth-icon">
+            <Bot size={32} />
+          </span>
           <h2>{isSignup ? 'Create Account' : 'Welcome Back'}</h2>
-          <p>
+          <p className="text-muted">
             {isSignup 
               ? 'Sign up to start analyzing your presentations' 
-              : 'Sign in to continue with your presentations'
+              : 'Sign in to continue your journey'
             }
           </p>
         </div>
@@ -160,7 +147,7 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
               name="email"
               value={formData.email}
               onChange={handleInputChange}
-              placeholder="Enter your email"
+              placeholder="you@example.com"
               className={errors.email ? 'error' : ''}
               disabled={isLoading}
             />
@@ -188,8 +175,9 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
                 onClick={togglePasswordVisibility}
                 className="password-toggle"
                 disabled={isLoading}
+                tabIndex={-1} // Makes it non-focusable
               >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             {errors.password && <span className="error-message">{errors.password}</span>}
@@ -217,8 +205,9 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
                   onClick={togglePasswordVisibility}
                   className="password-toggle"
                   disabled={isLoading}
+                  tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {errors.confirmPassword && <span className="error-message">{errors.confirmPassword}</span>}
@@ -232,7 +221,7 @@ const AuthForm = ({ mode = 'signin', onAuthSuccess }) => {
           >
             {isLoading ? (
               <>
-                <Loader size={16} className="spinning" />
+                <Loader size={18} className="spinning" />
                 {isSignup ? 'Creating Account...' : 'Signing In...'}
               </>
             ) : (

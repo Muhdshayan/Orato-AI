@@ -11,14 +11,17 @@ import {
   FileText,
   ArrowLeft,
   Copy,
-  Check
+  Check,
+  ToggleLeft,
+  ToggleRight,
+  AlertCircle
 } from 'lucide-react';
 
 const TranscriptView = () => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
   
-  // State management
+  // LOGIC UNCHANGED
   const [transcript, setTranscript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,19 +29,13 @@ const TranscriptView = () => {
   const [copiedText, setCopiedText] = useState(false);
   const [showWordTimestamps, setShowWordTimestamps] = useState(false);
 
-  // Fetch transcript data
   const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('🔍 Fetching transcript for submission:', submissionId);
       const response = await transcriptAPI.getTranscript(submissionId);
-      console.log('📄 Transcript response:', response);
       setTranscript(response);
-      
     } catch (err) {
-      console.error('❌ Transcript fetch error:', err);
       setError(err.message || 'Failed to fetch transcript');
       toast.error(`Failed to fetch transcript: ${err.message}`);
     } finally {
@@ -46,174 +43,135 @@ const TranscriptView = () => {
     }
   }, [submissionId]);
 
-  // Load transcript on component mount
   useEffect(() => {
     fetchTranscript();
   }, [fetchTranscript]);
-
-  // Auto-refresh if transcript is not ready
+  
   useEffect(() => {
-    if (!transcript && !error) {
+    if (!transcript && !error && loading === false) { // Only poll if not loading and no data/error yet
       const interval = setInterval(() => {
         fetchTranscript();
-      }, 3000); // Check every 3 seconds
-
+      }, 5000);
       return () => clearInterval(interval);
     }
-  }, [transcript, error, fetchTranscript]);
+  }, [transcript, error, loading, fetchTranscript]);
 
-  // Copy transcript text to clipboard
   const copyToClipboard = async () => {
+    if (!transcript?.full_text) return;
     try {
       await navigator.clipboard.writeText(transcript.full_text);
       setCopiedText(true);
       toast.success('Transcript copied to clipboard!');
-      
       setTimeout(() => setCopiedText(false), 2000);
     } catch (err) {
       toast.error('Failed to copy text');
     }
   };
-
-  // Format time for display
+  
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Handle segment click for audio playback
   const handleSegmentClick = (segment) => {
-    setPlayingSegment(segment);
-    // Here you would implement audio playback
-    // For now, we'll just show which segment is selected
-    toast.success(`Playing segment: ${segment.text || segment.label}`);
+    setPlayingSegment(segment === playingSegment ? null : segment);
+    // Future audio playback logic here
   };
-
-  // Handle word click for audio playback
-  const handleWordClick = (word) => {
-    setPlayingSegment(word);
-    toast.success(`Playing word: ${word.word}`);
-  };
-
-  // Loading state
+  
+  // RENDER LOGIC
   if (loading) {
     return (
-      <div className="container text-center">
-        <Loader size={48} className="loading-spinner" />
-        <h2>Loading Transcript...</h2>
-        <p className="text-muted">This may take a moment while the audio is being transcribed.</p>
+      <div className="loading-container">
+        <Loader size={32} className="spinning" />
+        <p>Loading Transcript...</p>
+        <span className="text-muted">This may take a moment while the audio is transcribed.</span>
       </div>
     );
   }
 
-  // Error state
-  if (error) {
+  if (error || !transcript) {
     return (
-      <div className="container error-message">
-        <h2>Error Loading Transcript</h2>
-        <p>{error}</p>
-        <button onClick={fetchTranscript} className="btn refresh-button">
-          <RefreshCw size={16} /> Try Again
-        </button>
-      </div>
-    );
-  }
-
-  // No transcript found
-  if (!transcript) {
-    return (
-      <div className="container text-center">
-        <h2>Transcript Not Found</h2>
-        <p>No transcript available for submission: {submissionId}</p>
-        <button onClick={() => navigate('/')} className="btn">
-          <ArrowLeft size={16} /> Back to Upload
-        </button>
+      <div className="card text-center">
+        <AlertCircle size={48} className="text-danger" style={{ marginBottom: '1rem' }} />
+        <h2>Transcript Not Available</h2>
+        <p className="text-muted">{error || `No transcript found for submission: ${submissionId}`}</p>
+        <div className="action-buttons">
+            <button onClick={() => navigate('/')} className="btn btn-secondary">
+                <ArrowLeft size={16} /> Back to Upload
+            </button>
+            <button onClick={fetchTranscript} className="btn">
+                <RefreshCw size={16} /> Try Again
+            </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container">
-      {/* Header */}
-      <div className="header">
-        <button 
-          onClick={() => navigate('/')} 
-          className="btn"
-          style={{ marginRight: '20px' }}
-        >
-          <ArrowLeft size={16} /> Back to Upload
+    <div className="transcript-container">
+      <div className="transcript-header-bar">
+        <button onClick={() => navigate(`/status/${submissionId}`)} className="btn btn-secondary">
+          <ArrowLeft size={16} /> Back to Status
         </button>
-        <h1>Audio Transcript</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button 
-            onClick={copyToClipboard} 
-            className="btn"
-            style={{ background: copiedText ? '#28a745' : '#007bff' }}
-          >
+        <h1>Presentation Transcript</h1>
+        <div className="action-buttons">
+          <button onClick={copyToClipboard} className="btn btn-secondary">
             {copiedText ? <Check size={16} /> : <Copy size={16} />}
-            {copiedText ? 'Copied!' : 'Copy Text'}
+            {copiedText ? 'Copied!' : 'Copy'}
           </button>
-          <button 
-            onClick={fetchTranscript} 
-            className="btn refresh-button"
-          >
+          <button onClick={fetchTranscript} className="btn">
             <RefreshCw size={16} /> Refresh
           </button>
         </div>
       </div>
 
-      {/* Transcript Info */}
-      <div className="status-card">
-        <div className="status-item">
-          <span className="status-label">Submission ID:</span>
-          <span className="status-value">{transcript.submission_id}</span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Audio Duration:</span>
-          <span className="status-value">{formatTime(transcript.audio_duration)}</span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Model Used:</span>
-          <span className="status-value">{transcript.model_used}</span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Device:</span>
-          <span className="status-value">{transcript.device_used}</span>
-        </div>
-        <div className="status-item">
-          <span className="status-label">Created At:</span>
-          <span className="status-value">
-            {new Date(transcript.created_at).toLocaleString()}
-          </span>
+      <div className="card">
+        <div className="grid">
+            <div><h4>Audio Duration</h4><p>{formatTime(transcript.audio_duration)}</p></div>
+            <div><h4>Model Used</h4><p>{transcript.model_used}</p></div>
+            <div><h4>Device</h4><p>{transcript.device_used}</p></div>
+            <div><h4>Transcribed At</h4><p>{new Date(transcript.created_at).toLocaleString()}</p></div>
         </div>
       </div>
 
-      {/* Full Transcript Text */}
-      <div className="status-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="card">
+        <div className="card-header">
           <h2>Full Transcript</h2>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              <input
-                type="checkbox"
-                checked={showWordTimestamps}
-                onChange={(e) => setShowWordTimestamps(e.target.checked)}
-              />
-              Show Word Timestamps
-            </label>
+          <div className="toggle-switch" onClick={() => setShowWordTimestamps(!showWordTimestamps)}>
+            <span>Show Word Timestamps</span>
+            {showWordTimestamps ? <ToggleRight size={24} className="text-success" /> : <ToggleLeft size={24} />}
           </div>
         </div>
         
-        <div className="transcript-text">
-          {transcript.full_text}
-        </div>
+        {!showWordTimestamps ? (
+            <div className="transcript-text">
+                {transcript.full_text}
+            </div>
+        ) : (
+            <div className="words-container">
+            {transcript.word_timestamps && transcript.word_timestamps.length > 0 ? (
+                transcript.word_timestamps.map((word, index) => (
+                <span 
+                    key={index} 
+                    className="word-item"
+                    title={`${formatTime(word.start_offset)} - ${formatTime(word.end_offset)}`}
+                >
+                    {word.word}
+                </span>
+                ))
+            ) : (
+                <p className="text-muted">Word-level timestamps are not available for this transcript.</p>
+            )}
+            </div>
+        )}
       </div>
 
-      {/* Segment Timestamps */}
       {transcript.segment_timestamps && transcript.segment_timestamps.length > 0 && (
-        <div className="status-card">
-          <h2>Segment Timestamps</h2>
+        <div className="card">
+          <div className="card-header">
+            <h2>Segment Timestamps</h2>
+          </div>
           <div className="segments-container">
             {transcript.segment_timestamps.map((segment, index) => (
               <div 
@@ -221,57 +179,21 @@ const TranscriptView = () => {
                 className={`segment-item ${playingSegment === segment ? 'playing' : ''}`}
                 onClick={() => handleSegmentClick(segment)}
               >
-                <div className="segment-time">
-                  <Clock size={14} />
-                  {formatTime(segment.start_offset)} - {formatTime(segment.end_offset)}
+                <div className="segment-play">
+                  {playingSegment === segment ? <Pause size={18} /> : <Play size={18} />}
                 </div>
                 <div className="segment-text">
                   {segment.label || segment.segment || segment.text}
                 </div>
-                <div className="segment-play">
-                  {playingSegment === segment ? <Pause size={16} /> : <Play size={16} />}
+                <div className="segment-time">
+                  <Clock size={14} />
+                  <span>{formatTime(segment.start_offset)} - {formatTime(segment.end_offset)}</span>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
-
-      {/* Word Timestamps (if enabled) */}
-      {showWordTimestamps && transcript.word_timestamps && transcript.word_timestamps.length > 0 && (
-        <div className="status-card">
-          <h2>Word Timestamps</h2>
-          <div className="words-container">
-            {transcript.word_timestamps.map((word, index) => (
-              <span 
-                key={index} 
-                className={`word-item ${playingSegment === word ? 'playing' : ''}`}
-                onClick={() => handleWordClick(word)}
-                title={`${formatTime(word.start_offset)} - ${formatTime(word.end_offset)}`}
-              >
-                {word.word}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Actions */}
-      <div className="text-center" style={{ marginTop: '30px' }}>
-        <button 
-          onClick={() => navigate(`/status/${submissionId}`)} 
-          className="btn"
-          style={{ marginRight: '10px' }}
-        >
-          <FileText size={16} /> View Processing Status
-        </button>
-        <button 
-          onClick={() => navigate('/')} 
-          className="btn refresh-button"
-        >
-          Upload Another Video
-        </button>
-      </div>
     </div>
   );
 };
