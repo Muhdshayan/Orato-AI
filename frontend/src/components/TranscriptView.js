@@ -5,15 +5,9 @@ import toast from 'react-hot-toast';
 import { 
   Loader, 
   RefreshCw, 
-  Play, 
-  Pause, 
-  Clock, 
-  FileText,
   ArrowLeft,
   Copy,
   Check,
-  ToggleLeft,
-  ToggleRight,
   AlertCircle
 } from 'lucide-react';
 
@@ -25,9 +19,7 @@ const TranscriptView = () => {
   const [transcript, setTranscript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [playingSegment, setPlayingSegment] = useState(null);
   const [copiedText, setCopiedText] = useState(false);
-  const [showWordTimestamps, setShowWordTimestamps] = useState(false);
 
   const fetchTranscript = useCallback(async () => {
     try {
@@ -72,11 +64,6 @@ const TranscriptView = () => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleSegmentClick = (segment) => {
-    setPlayingSegment(segment === playingSegment ? null : segment);
-    // Future audio playback logic here
   };
   
   // RENDER LOGIC
@@ -137,63 +124,12 @@ const TranscriptView = () => {
 
       <div className="card">
         <div className="card-header">
-          <h2>Full Transcript</h2>
-          <div className="toggle-switch" onClick={() => setShowWordTimestamps(!showWordTimestamps)}>
-            <span>Show Word Timestamps</span>
-            {showWordTimestamps ? <ToggleRight size={24} className="text-success" /> : <ToggleLeft size={24} />}
-          </div>
+          <h2>Transcript</h2>
         </div>
-        
-        {!showWordTimestamps ? (
-            <div className="transcript-text">
-                {transcript.full_text}
-            </div>
-        ) : (
-            <div className="words-container">
-            {transcript.word_timestamps && transcript.word_timestamps.length > 0 ? (
-                transcript.word_timestamps.map((word, index) => (
-                <span 
-                    key={index} 
-                    className="word-item"
-                    title={`${formatTime(word.start_offset)} - ${formatTime(word.end_offset)}`}
-                >
-                    {word.word}
-                </span>
-                ))
-            ) : (
-                <p className="text-muted">Word-level timestamps are not available for this transcript.</p>
-            )}
-            </div>
-        )}
+        <div className="transcript-text">
+          {transcript.full_text}
+        </div>
       </div>
-
-      {transcript.segment_timestamps && transcript.segment_timestamps.length > 0 && (
-        <div className="card">
-          <div className="card-header">
-            <h2>Segment Timestamps</h2>
-          </div>
-          <div className="segments-container">
-            {transcript.segment_timestamps.map((segment, index) => (
-              <div 
-                key={index} 
-                className={`segment-item ${playingSegment === segment ? 'playing' : ''}`}
-                onClick={() => handleSegmentClick(segment)}
-              >
-                <div className="segment-play">
-                  {playingSegment === segment ? <Pause size={18} /> : <Play size={18} />}
-                </div>
-                <div className="segment-text">
-                  {segment.label || segment.segment || segment.text}
-                </div>
-                <div className="segment-time">
-                  <Clock size={14} />
-                  <span>{formatTime(segment.start_offset)} - {formatTime(segment.end_offset)}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

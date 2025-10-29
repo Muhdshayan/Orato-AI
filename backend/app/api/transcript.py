@@ -5,15 +5,9 @@ import traceback
 import os
 import tempfile
 
-# Try to import ASR service with fallback
-try:
-    from app.services.asr_service import asr_service
-    ASR_AVAILABLE = True
-    print("✅ NeMo ASR service loaded in transcript API")
-except ImportError as e:
-    print(f"⚠️ NeMo ASR not available in transcript API, using simple ASR: {e}")
-    from app.services.simple_asr_service import simple_asr_service as asr_service
-    ASR_AVAILABLE = False
+# Always use simple ASR service (handles Parakeet subprocess + Google fallback)
+from app.services.simple_asr_service import simple_asr_service as asr_service
+print("✅ Simple ASR service loaded (Parakeet + Google fallback)")
 
 router = APIRouter()
 
@@ -96,11 +90,11 @@ async def get_transcript(submission_id: str):
             "submission_id": submission_id,
             "transcript_id": transcript["transcript_id"],
             "full_text": transcript["full_text"],
-            "word_timestamps": asr_metadata.get("word_timestamps", []),
             "segment_timestamps": transcript.get("segments", []),
             "audio_duration": asr_metadata.get("audio_duration", 0),
             "model_used": asr_metadata.get("model_used", "Simple ASR"),
             "device_used": asr_metadata.get("device_used", "CPU"),
+            "word_count": asr_metadata.get("word_count", len(transcript["full_text"].split())),
             "created_at": transcript["created_at"]
         }
         

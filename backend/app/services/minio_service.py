@@ -17,13 +17,27 @@ class MinIOService:
             secure=settings.MINIO_SECURE
         )
         self.bucket = settings.MINIO_MEDIA_BUCKET
-        self._ensure_bucket()
+        # Attempt to ensure bucket exists, but don't fail initialization if there's a time skew error
+        try:
+            self._ensure_bucket()
+        except S3Error as e:
+            if "RequestTimeTooSkewed" in str(e):
+                print(f"⚠️ MinIO time skew detected. Bucket check skipped. Will retry on first operation.")
+                print(f"⚠️ Please ensure your system time is synchronized or restart Docker.")
+            else:
+                raise
     
     def _ensure_bucket(self):
         """Create bucket if it doesn't exist"""
-        if not self.client.bucket_exists(self.bucket):
-            self.client.make_bucket(self.bucket)
-            print(f"✅ Created MinIO bucket: {self.bucket}")
+        try:
+            if not self.client.bucket_exists(self.bucket):
+                self.client.make_bucket(self.bucket)
+                print(f"✅ Created MinIO bucket: {self.bucket}")
+        except S3Error as e:
+            if "RequestTimeTooSkewed" not in str(e):
+                raise
+            # If time skew error, re-raise to be caught by __init__
+            raise
     
     def upload_file(self, file_path: str, object_name: str, content_type: str = None) -> str:
         """Upload file to MinIO and return object name"""

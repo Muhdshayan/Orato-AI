@@ -1,0 +1,22 @@
+# Minimal requirements for NeMo Parakeet ASR
+# Install PyTorch first from official index, then install these
+
+# Core PyTorch (install separately with --index-url)
+# torch==2.4.0
+# torchaudio==2.4.0
+
+# NeMo and ASR dependencies
+nemo-toolkit[asr]==2.0.0
+librosa==0.10.2
+soundfile==0.12.1
+hydra-core==1.3.2
+omegaconf==2.3.0
+
+# Audio processing
+scipy==1.13.0
+numba==0.59.0
+
+# Optional but recommended
+Cython
+packaging
+

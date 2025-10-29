@@ -7,19 +7,26 @@ ENV/
 __pycache__/
 
 # Environment variables
-
+.env
+.env.local
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+*.log
 
 # Python cache
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -27,6 +34,39 @@ Thumbs.db
 # MinIO data
 minio-data/
 
-# Media files (optional - uncomment if needed)
-# *.mp4
-# *.wav
+# Cache directories (HuggingFace models, temp files)
+.cache/
+*.cache
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Media files (test videos/audio)
+*.mp4
+*.wav
+*.mp3
+*.avi
+*.mov
+*.webm
+
+# Logs
+logs/
+*.log
+
+# Node modules (frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build directories
+build/
+dist/
+*.egg-info/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

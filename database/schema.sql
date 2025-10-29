@@ -1,4 +1,5 @@
 -- Enable required extension for gen_random_uuid()
+use postgres
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Users table
@@ -143,6 +144,8 @@ CREATE INDEX idx_analysis_reports_submission_id ON analysis_reports(submission_i
 DELETE FROM users;
 
 DELETE FROM video_submissions;
+
+Delete from transcripts;
 
 SELECT user_id, name, email, role, created_at 
 FROM users 

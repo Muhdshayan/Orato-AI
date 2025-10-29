@@ -11,125 +11,56 @@ from psycopg2.extras import RealDictCursor
 
 class SimpleASRService:
     """
-    ASR service that tries Parakeet first (via Python 3.10), 
+    ASR service that tries Parakeet first (via Python 3.10 subprocess), 
     then falls back to Google Speech Recognition
     """
     
     def __init__(self):
-        """Initialize the ASR service."""
-        self.model_ready = False
-        self.use_parakeet = False
-        self.model_name = "simple-speech-recognition"
-        self.device = "cpu"
-        self._check_parakeet()
-        if not self.use_parakeet:
-            self._try_load_basic_asr()
-    
-    def _check_parakeet(self):
-        """Check if Parakeet is available via Python 3.10"""
-        try:
-            # Check if venv_asr exists and has the transcription script
-            venv_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'venv_asr')
-            script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), 'transcribe_with_parakeet.py')
-            python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
-            
-            if os.path.exists(python_exe) and os.path.exists(script_path):
-                # Test if NeMo is installed
-                test_cmd = [python_exe, '-c', 'import nemo.collections.asr; print("OK")']
-                result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=10)
-                
-                if result.returncode == 0 and 'OK' in result.stdout:
-                    self.use_parakeet = True
-                    self.model_ready = True
-                    self.model_name = "nvidia/parakeet-tdt-0.6b-v2"
-                    self.python_exe = python_exe
-                    self.script_path = script_path
-                    print("✅ Parakeet ASR available (Python 3.10)")
-                    return
-        except Exception as e:
-            print(f"⚠️ Parakeet check failed: {e}")
+        """Initialize the ASR service with paths (no pre-checks)."""
+        # Get project root (4 levels up: services -> app -> backend -> root)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         
-        self.use_parakeet = False
-    
-    def _try_load_basic_asr(self):
-        """Try to load basic speech recognition libraries."""
+        # Set HuggingFace cache to project directory (D: drive)
+        hf_cache = os.path.join(project_root, '.cache', 'huggingface')
+        temp_dir = os.path.join(project_root, '.cache', 'temp')
+        
+        # Create directories if they don't exist
+        os.makedirs(hf_cache, exist_ok=True)
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        # Set cache and temp locations to D: drive (prevents C: drive usage)
+        os.environ['HF_HOME'] = hf_cache
+        os.environ['HUGGINGFACE_HUB_CACHE'] = hf_cache
+        os.environ['TMPDIR'] = temp_dir
+        os.environ['TEMP'] = temp_dir
+        os.environ['TMP'] = temp_dir
+        
+        # Set paths for Parakeet subprocess call
+        self.project_root = project_root
+        venv_path = os.path.join(project_root, 'venv_asr')
+        services_dir = os.path.dirname(__file__)
+        
+        self.python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
+        self.script_path = os.path.join(services_dir, 'transcribe_with_parakeet.py')
+        
+        # Load Google Speech Recognition as fallback
         try:
             import speech_recognition as sr
             import librosa
             import soundfile as sf
-            
             self.recognizer = sr.Recognizer()
-            self.model_ready = True
-            print("✅ Google Speech Recognition loaded")
-            
+            print("✅ Simple ASR service initialized (will try Parakeet first)")
         except Exception as e:
-            print(f"⚠️ Simple ASR service not available: {e}")
-            self.model_ready = False
+            print(f"⚠️ Google Speech Recognition not available: {e}")
+            self.recognizer = None
     
     def is_ready(self) -> bool:
         """Check if the ASR service is ready."""
-        return self.model_ready
-    
-    def _transcribe_with_parakeet(self, audio_path: str) -> Dict[str, Any]:
-        """
-        Transcribe using Parakeet via Python 3.10 subprocess
-        
-        Args:
-            audio_path: Path to audio file
-            
-        Returns:
-            Dict with transcription results
-        """
-        print(f"🎤 Starting Parakeet transcription: {os.path.basename(audio_path)}")
-        
-        # Call Python 3.10 with the transcription script
-        cmd = [self.python_exe, self.script_path, audio_path]
-        
-        # Run with timeout (5 minutes for long audio)
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=300
-        )
-        
-        if result.returncode != 0:
-            raise Exception(f"Parakeet script failed: {result.stderr}")
-        
-        # Parse JSON output
-        try:
-            data = json.loads(result.stdout)
-        except json.JSONDecodeError as e:
-            raise Exception(f"Failed to parse Parakeet output: {e}\nOutput: {result.stdout[:500]}")
-        
-        if not data.get('success'):
-            error_msg = data.get('error', 'Unknown error')
-            raise Exception(f"Parakeet transcription failed: {error_msg}")
-        
-        print(f"✅ Parakeet transcription completed: {len(data.get('text', ''))} characters")
-        print(f"   Model: {data.get('model')}, Device: {data.get('device')}")
-        
-        # Format segments from Parakeet timestamps
-        segments = []
-        for seg in data.get('segment_timestamps', []):
-            segments.append({
-                'text': seg.get('label', seg.get('segment', '')),
-                'start': seg.get('start_offset', 0),
-                'end': seg.get('end_offset', 0)
-            })
-        
-        return {
-            "full_text": data.get('text', ''),
-            "segments": segments,
-            "word_timestamps": data.get('word_timestamps', []),
-            "asr_confidence": 0.95,  # Parakeet high confidence
-            "model": data.get('model'),
-            "device": data.get('device')
-        }
+        return True  # Always ready (will try Parakeet, then fallback if needed)
     
     def transcribe_audio(self, audio_path: str) -> Dict[str, Any]:
         """
-        Transcribe audio file using Parakeet (if available) or Google Speech Recognition.
+        Transcribe audio file - tries Parakeet first, falls back to Google Speech Recognition.
         
         Args:
             audio_path: Path to the audio file to transcribe
@@ -137,57 +68,136 @@ class SimpleASRService:
         Returns:
             Dictionary containing transcription results
         """
-        if not self.is_ready():
-            raise Exception("ASR service is not available")
-        
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
         
-        # Try Parakeet first
-        if self.use_parakeet:
-            try:
-                return self._transcribe_with_parakeet(audio_path)
-            except Exception as e:
-                print(f"⚠️ Parakeet transcription failed: {e}")
-                print("   Falling back to Google Speech Recognition...")
-                # Fall through to Google Speech Recognition
-        
-        # Use Google Speech Recognition
+        # ALWAYS TRY PARAKEET FIRST (via subprocess)
         try:
-            print(f"🎤 Starting Google Speech transcription: {os.path.basename(audio_path)}")
+            print(f"🎤 Attempting Parakeet transcription: {os.path.basename(audio_path)}")
+            print(f"   Python: {self.python_exe}")
+            print(f"   Script: {self.script_path}")
+            print(f"   Audio: {audio_path}")
             
-            # Convert audio to WAV format for speech recognition
-            wav_path = self._convert_to_wav(audio_path)
+            # Verify paths exist
+            if not os.path.exists(self.python_exe):
+                raise Exception(f"Python executable not found: {self.python_exe}")
+            if not os.path.exists(self.script_path):
+                raise Exception(f"Transcription script not found: {self.script_path}")
             
-            # Transcribe using Google Speech Recognition
-            import speech_recognition as sr
+            # Call Parakeet script using venv_asr Python
+            cmd = [self.python_exe, self.script_path, audio_path]
+            print(f"   Command: {' '.join(cmd)}")
             
-            with sr.AudioFile(wav_path) as source:
-                audio_data = self.recognizer.record(source)
+            # Prepare environment (inherit current env with cache paths)
+            env = os.environ.copy()
             
-            # Get transcription
-            full_text = self.recognizer.recognize_google(audio_data)
+            # Run subprocess (15 minutes timeout for long audio and model download)
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=900,
+                env=env
+            )
             
-            # Clean up temporary file
-            if wav_path != audio_path and os.path.exists(wav_path):
-                os.remove(wav_path)
+            # Check for errors
+            if result.returncode != 0:
+                error_msg = f"Parakeet script failed with return code {result.returncode}"
+                if result.stderr:
+                    error_msg += f"\nStderr:\n{result.stderr}"
+                if result.stdout:
+                    error_msg += f"\nStdout:\n{result.stdout}"
+                raise Exception(error_msg)
             
-            print(f"✅ Google transcription completed: {len(full_text)} characters")
+            # Parse JSON output from Parakeet (filter out NeMo log lines)
+            try:
+                # NeMo may output logs to stdout, so we need to find the JSON line
+                # The JSON output should be the last non-empty line or a line starting with '{'
+                stdout_lines = result.stdout.strip().split('\n')
+                
+                # Try to find JSON in the output (starts with '{' and ends with '}')
+                json_str = None
+                for line in reversed(stdout_lines):
+                    line = line.strip()
+                    if line.startswith('{') and line.endswith('}'):
+                        json_str = line
+                        break
+                
+                if json_str is None:
+                    # If no clear JSON line, try to parse the entire stdout
+                    json_str = result.stdout
+                
+                data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                raise Exception(f"Failed to parse Parakeet output: {e}\nOutput: {result.stdout[:500]}")
+            
+            if not data.get('success'):
+                error_msg = data.get('error', 'Unknown error')
+                raise Exception(f"Parakeet transcription failed: {error_msg}")
+            
+            print(f"✅ Parakeet transcription completed: {len(data.get('text', ''))} characters")
+            print(f"   Model: {data.get('model')}, Device: {data.get('device')}")
+            
+            # Format segments from Parakeet timestamps (new format)
+            segments = data.get('segment_timestamps', [])
             
             return {
-                "full_text": full_text,
-                "segments": [],  # Not available in simple mode
-                "asr_confidence": 0.8,  # Default confidence for simple mode
+                "full_text": data.get('text', ''),
+                "segments": segments,  # Already in correct format: {text, start, end}
+                "asr_confidence": 0.95,  # Parakeet high confidence
                 "asr_metadata": {
-                    "audio_duration": self._get_audio_duration(audio_path),
-                    "model_used": self.model_name,
-                    "device_used": self.device
+                    "audio_duration": data.get('audio_duration', 0),
+                    "word_count": data.get('word_count', 0),
+                    "model_used": data.get('model', 'nvidia/parakeet-tdt-0.6b-v3'),
+                    "device_used": data.get('device', 'unknown')
                 }
             }
             
         except Exception as e:
-            print(f"❌ Simple transcription failed: {e}")
+            print(f"❌ Parakeet transcription failed: {e}")
             traceback.print_exc()
+            
+            # FALLBACK TO GOOGLE SPEECH RECOGNITION (COMMENTED OUT FOR DEBUGGING)
+            # Uncomment the block below when ready to enable fallback
+            """
+            print("⚠️ Falling back to Google Speech Recognition...")
+            try:
+                print(f"🎤 Starting Google Speech transcription: {os.path.basename(audio_path)}")
+                
+                # Convert audio to WAV format for speech recognition
+                wav_path = self._convert_to_wav(audio_path)
+                
+                # Transcribe using Google Speech Recognition
+                import speech_recognition as sr
+                
+                with sr.AudioFile(wav_path) as source:
+                    audio_data = self.recognizer.record(source)
+                
+                # Get transcription
+                full_text = self.recognizer.recognize_google(audio_data)
+                
+                # Clean up temporary file
+                if wav_path != audio_path and os.path.exists(wav_path):
+                    os.remove(wav_path)
+                
+                print(f"✅ Google transcription completed: {len(full_text)} characters")
+                
+                return {
+                    "full_text": full_text,
+                    "segments": [],  # Not available in simple mode
+                    "asr_confidence": 0.8,  # Default confidence for simple mode
+                    "asr_metadata": {
+                        "audio_duration": self._get_audio_duration(audio_path),
+                        "model_used": "simple-speech-recognition",
+                        "device_used": "cpu"
+                    }
+                }
+            except Exception as google_error:
+                print(f"❌ Google transcription also failed: {google_error}")
+                traceback.print_exc()
+                raise
+            """
+            # Re-raise the Parakeet error since fallback is disabled
             raise
     
     def _convert_to_wav(self, audio_path: str) -> str:

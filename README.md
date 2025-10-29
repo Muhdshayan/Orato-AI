@@ -101,11 +101,23 @@ ORATO-AI/
 3. **Set up MinIO with Docker**
    
    Run MinIO container:
+   
+   **For Windows CMD:**
+   ```cmd
+   docker run -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=MINIO_ACCESS -e MINIO_ROOT_PASSWORD=MINIO_SECRET -v "%cd%/minio-data":/data --name minio minio/minio server /data --console-address ":9001"
+   ```
+   
+   **For PowerShell:**
+   ```powershell
+   docker run -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=MINIO_ACCESS -e MINIO_ROOT_PASSWORD=MINIO_SECRET -v "${PWD}/minio-data":/data --name minio minio/minio server /data --console-address ":9001"
+   ```
+   
+   **For Linux/Mac:**
    ```bash
    docker run -p 9000:9000 -p 9001:9001 \
      -e MINIO_ROOT_USER=MINIO_ACCESS \
      -e MINIO_ROOT_PASSWORD=MINIO_SECRET \
-     -v "%cd%/minio-data":/data \
+     -v "$(pwd)/minio-data":/data \
      --name minio minio/minio server /data --console-address ":9001"
    ```
    
