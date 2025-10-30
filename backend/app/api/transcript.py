@@ -281,6 +281,143 @@ async def get_transcript_text(submission_id: str):
             detail=f"Failed to fetch transcript text: {str(e)}"
         )
 
+@router.post("/{submission_id}/analyze-speech")
+async def analyze_speech(submission_id: str):
+    """
+    Analyze speech metrics (filler words, fluency) for a transcript
+    
+    Args:
+        submission_id: The video submission ID
+        
+    Returns:
+        Speech analysis results
+    """
+    try:
+        print(f"📊 Starting speech analysis for submission: {submission_id}")
+        
+        # Get transcript
+        transcript = asr_service.get_transcript(submission_id)
+        
+        if not transcript:
+            raise HTTPException(
+                status_code=404,
+                detail="Transcript not found for this submission"
+            )
+        
+        transcript_id = transcript["transcript_id"]
+        
+        # Prepare complete transcript data for analysis
+        asr_metadata = transcript.get("asr_metadata", {})
+        full_text = transcript["full_text"]
+        segment_timestamps = transcript.get("segments", [])
+        audio_duration = asr_metadata.get("audio_duration", 0)
+        # Prefer stored word_count; otherwise derive from text
+        word_count = asr_metadata.get("word_count") or len(full_text.split())
+
+        transcript_data = {
+            "full_text": full_text,
+            "segment_timestamps": segment_timestamps,
+            "audio_duration": audio_duration,
+            "word_count": word_count
+        }
+        
+        # Analyze and store metrics (filler words + pauses + speech rates)
+        from app.services.speech_metrics_service import speech_metrics_service
+        
+        metrics = speech_metrics_service.analyze_and_store_metrics(
+            transcript_id, 
+            transcript_data
+        )
+        
+        return {
+            "submission_id": submission_id,
+            "transcript_id": transcript_id,
+            "status": "completed",
+            "metrics": {
+                "filler_word_count": metrics["filler_word_count"],
+                "total_word_count": metrics["total_word_count"],
+                "filler_word_percentage": metrics["filler_word_percentage"],
+                "fluency_score": metrics["fluency_score"],
+                "speech_rate": metrics.get("speech_rate", 0),
+                "articulation_rate": metrics.get("articulation_rate", 0),
+                "total_pause_time": metrics.get("total_pause_time", 0),
+                "pause_count": metrics.get("pause_count", 0)
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error analyzing speech: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze speech: {str(e)}"
+        )
+
+@router.get("/{submission_id}/speech-metrics")
+async def get_speech_metrics(submission_id: str):
+    """
+    Get speech metrics for a transcript
+    
+    Args:
+        submission_id: The video submission ID
+        
+    Returns:
+        Speech metrics data
+    """
+    try:
+        print(f"📊 Fetching speech metrics for submission: {submission_id}")
+        
+        # Get transcript
+        transcript = asr_service.get_transcript(submission_id)
+        
+        if not transcript:
+            raise HTTPException(
+                status_code=404,
+                detail="Transcript not found for this submission"
+            )
+        
+        transcript_id = transcript["transcript_id"]
+        
+        # Get speech metrics
+        from app.services.speech_metrics_service import speech_metrics_service
+        metrics = speech_metrics_service.get_speech_metrics(transcript_id)
+        
+        if not metrics:
+            return {
+                "submission_id": submission_id,
+                "transcript_id": transcript_id,
+                "status": "not_analyzed",
+                "message": "Speech metrics not yet analyzed. Click 'Analyze Speech' button."
+            }
+        
+        return {
+            "submission_id": submission_id,
+            "transcript_id": transcript_id,
+            "status": "completed",
+            "filler_word_count": metrics["filler_word_count"],
+            "total_word_count": metrics["total_word_count"],
+            "filler_word_percentage": metrics["filler_word_percentage"],
+            "fluency_score": metrics["fluency_score"],
+            "speech_rate": metrics.get("speech_rate", 0),
+            "articulation_rate": metrics.get("articulation_rate", 0),
+            "total_pause_time": metrics.get("total_pause_time", 0),
+            "pause_count": metrics.get("pause_count", 0),
+            "pause_durations": metrics.get("pause_durations", {}),
+            "created_at": metrics["created_at"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error fetching speech metrics: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch speech metrics: {str(e)}"
+        )
+
 @router.get("/asr/status")
 async def get_asr_status():
     """

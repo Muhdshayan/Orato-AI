@@ -1,5 +1,4 @@
 -- Enable required extension for gen_random_uuid()
-use postgres
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 -- Users table
@@ -56,9 +55,14 @@ CREATE TABLE speech_metrics (
     metrics_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     transcript_id UUID NOT NULL REFERENCES transcripts(transcript_id) ON DELETE CASCADE,
     filler_word_count INTEGER DEFAULT 0,
-    speech_rate FLOAT,
-    pause_durations JSONB,
+    total_word_count INTEGER DEFAULT 0,
+    filler_word_percentage FLOAT DEFAULT 0,
     fluency_score FLOAT,
+    speech_rate FLOAT,
+    articulation_rate FLOAT,
+    total_pause_time FLOAT DEFAULT 0,
+    pause_count INTEGER DEFAULT 0,
+    pause_durations JSONB,
     articulation_score FLOAT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

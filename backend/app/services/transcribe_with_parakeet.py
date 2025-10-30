@@ -15,6 +15,38 @@ import signal
 if not hasattr(signal, 'SIGKILL'):
     signal.SIGKILL = signal.SIGTERM
 
+def cleanup_old_temp_files(temp_dir: str, max_age_hours: int = 24):
+    """Clean up old temporary files and directories"""
+    try:
+        import time
+        import shutil
+        
+        if not os.path.exists(temp_dir):
+            return
+        
+        current_time = time.time()
+        max_age_seconds = max_age_hours * 3600
+        
+        for item in os.listdir(temp_dir):
+            item_path = os.path.join(temp_dir, item)
+            try:
+                # Get file/folder age
+                item_age = current_time - os.path.getmtime(item_path)
+                
+                # Remove if older than max_age
+                if item_age > max_age_seconds:
+                    if os.path.isdir(item_path):
+                        shutil.rmtree(item_path, ignore_errors=True)
+                        print(f"Cleaned up old temp directory: {item}", file=sys.stderr)
+                    else:
+                        os.remove(item_path)
+                        print(f"Cleaned up old temp file: {item}", file=sys.stderr)
+            except Exception as e:
+                # Ignore errors (file might be in use)
+                pass
+    except Exception as e:
+        print(f"Warning: Temp cleanup failed: {e}", file=sys.stderr)
+
 def transcribe_audio(audio_path: str):
     """Transcribe audio file using NeMo Parakeet"""
     try:
@@ -23,6 +55,9 @@ def transcribe_audio(audio_path: str):
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
         hf_cache = os.path.join(project_root, '.cache', 'huggingface')
         temp_dir = os.path.join(project_root, '.cache', 'temp')
+        
+        # Clean up old temp files (older than 24 hours)
+        cleanup_old_temp_files(temp_dir, max_age_hours=24)
         
         # Create directories if they don't exist
         os.makedirs(hf_cache, exist_ok=True)
@@ -36,6 +71,14 @@ def transcribe_audio(audio_path: str):
         os.environ['TMPDIR'] = temp_dir
         os.environ['TEMP'] = temp_dir
         os.environ['TMP'] = temp_dir
+        
+        # Set fixed NeMo model extraction directory (reuse extracted model, don't re-extract)
+        nemo_cache = os.path.join(project_root, '.cache', 'nemo_models')
+        os.makedirs(nemo_cache, exist_ok=True)
+        os.environ['NEMO_CACHE_DIR'] = nemo_cache
+        os.environ['NEMO_EXTRACTION_DIR'] = nemo_cache
+        
+        print(f"Using NeMo cache directory: {nemo_cache}", file=sys.stderr)
         
         # Set environment variables for Windows compatibility
         os.environ['HYDRA_FULL_ERROR'] = '0'
@@ -92,11 +135,17 @@ def transcribe_audio(audio_path: str):
         duration = len(audio) / sr
         
         # Save as temporary mono WAV file for NeMo (which expects mono audio)
+        # Use a dedicated temp directory for this transcription session
         import tempfile
         import soundfile as sf
-        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False, dir=temp_dir) as tmp_file:
-            mono_audio_path = tmp_file.name
-            sf.write(mono_audio_path, audio, sr)
+        import uuid
+        
+        # Create a unique temp subdirectory for this transcription
+        session_temp_dir = os.path.join(temp_dir, f"transcribe_{uuid.uuid4().hex[:8]}")
+        os.makedirs(session_temp_dir, exist_ok=True)
+        
+        mono_audio_path = os.path.join(session_temp_dir, "audio_mono.wav")
+        sf.write(mono_audio_path, audio, sr)
         
         print(f"Audio converted to mono: {duration:.2f}s", file=sys.stderr)
         
@@ -117,9 +166,14 @@ def transcribe_audio(audio_path: str):
             # Restore original stdout
             sys.stdout = original_stdout
             
-            # Clean up temporary mono audio file
-            if os.path.exists(mono_audio_path):
-                os.remove(mono_audio_path)
+            # Clean up temporary session directory
+            try:
+                import shutil
+                if os.path.exists(session_temp_dir):
+                    shutil.rmtree(session_temp_dir, ignore_errors=True)
+                    print(f"Cleaned up session temp directory", file=sys.stderr)
+            except Exception as cleanup_error:
+                print(f"Warning: Failed to cleanup temp directory: {cleanup_error}", file=sys.stderr)
         
         # Extract results
         hypothesis = transcription[0][0] if isinstance(transcription[0], list) else transcription[0]

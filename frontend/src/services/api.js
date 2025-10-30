@@ -148,6 +148,18 @@ export const transcriptAPI = {
     const response = await api.get('/api/v1/transcripts/asr/status');
     return response.data;
   },
+
+  // Analyze speech metrics (filler words, fluency)
+  analyzeSpeech: async (submissionId) => {
+    const response = await api.post(`/api/v1/transcripts/${submissionId}/analyze-speech`);
+    return response.data;
+  },
+
+  // Get speech metrics
+  getSpeechMetrics: async (submissionId) => {
+    const response = await api.get(`/api/v1/transcripts/${submissionId}/speech-metrics`);
+    return response.data;
+  },
 };
 
 export default api;

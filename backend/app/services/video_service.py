@@ -190,16 +190,27 @@ class VideoService:
 
         # Create temporary directory for processing
         import tempfile
-        temp_dir = tempfile.mkdtemp()
+        import uuid
+        
+        # Use project .cache/temp directory
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        cache_temp_dir = os.path.join(project_root, '.cache', 'temp')
+        os.makedirs(cache_temp_dir, exist_ok=True)
+        
+        # Create unique session directory
+        temp_dir = os.path.join(cache_temp_dir, f"video_process_{uuid.uuid4().hex[:8]}")
+        os.makedirs(temp_dir, exist_ok=True)
         print(f"🔍 Using temp directory: {temp_dir}")
         
         base_name = os.path.splitext(os.path.basename(video_path))[0]
         output_video_path = os.path.join(temp_dir, f"{base_name}_video_only.mp4")
         output_audio_path = os.path.join(temp_dir, f"{base_name}_audio_only.wav")
 
-        # 1) Load video and validate duration
-        clip = VideoFileClip(video_path)
+        # Ensure cleanup happens no matter what
+        clip = None
         try:
+            # 1) Load video and validate duration
+            clip = VideoFileClip(video_path)
             print(f"🔍 Video duration: {clip.duration:.2f}s")
             if clip.duration > self.max_duration_seconds:
                 raise ValueError(
@@ -250,77 +261,88 @@ class VideoService:
             )
             print(f"✅ Audio file written successfully")
 
-        finally:
-            clip.close()
+            # Close clip before proceeding
+            if clip:
+                clip.close()
 
-        # 4) Use provided submission ID for MinIO object names
-        original_obj = f"uploads/{submission_id}.mp4"
-        video_only_obj = f"derived/{submission_id}_video_only.mp4"
-        audio_only_obj = f"derived/{submission_id}_audio_only.wav"
+            # 4) Use provided submission ID for MinIO object names
+            original_obj = f"uploads/{submission_id}.mp4"
+            video_only_obj = f"derived/{submission_id}_video_only.mp4"
+            audio_only_obj = f"derived/{submission_id}_audio_only.wav"
 
-        print(f"🔍 Uploading original video to MinIO: {original_obj}")
-        # Upload original video
-        self.minio.upload_file(video_path, original_obj, content_type="video/mp4")
-        print(f"✅ Original video uploaded to MinIO")
-        
-        print(f"🔍 Uploading derived video to MinIO: {video_only_obj}")
-        # Upload derived files
-        self.minio.upload_file(output_video_path, video_only_obj, content_type="video/mp4")
-        print(f"✅ Derived video uploaded to MinIO")
-        
-        print(f"🔍 Uploading derived audio to MinIO: {audio_only_obj}")
-        self.minio.upload_file(output_audio_path, audio_only_obj, content_type="audio/wav")
-        print(f"✅ Derived audio uploaded to MinIO")
+            print(f"🔍 Uploading original video to MinIO: {original_obj}")
+            # Upload original video
+            self.minio.upload_file(video_path, original_obj, content_type="video/mp4")
+            print(f"✅ Original video uploaded to MinIO")
+            
+            print(f"🔍 Uploading derived video to MinIO: {video_only_obj}")
+            # Upload derived files
+            self.minio.upload_file(output_video_path, video_only_obj, content_type="video/mp4")
+            print(f"✅ Derived video uploaded to MinIO")
+            
+            print(f"🔍 Uploading derived audio to MinIO: {audio_only_obj}")
+            self.minio.upload_file(output_audio_path, audio_only_obj, content_type="audio/wav")
+            print(f"✅ Derived audio uploaded to MinIO")
 
-        # 5) Update database entry with MinIO details
-        print(f"🔍 Updating database entry for submission: {submission_id}")
-        conn = self._get_pg_conn()
-        try:
-            # Update the existing database entry with file details
-            with conn.cursor() as cur:
-                cur.execute(
-                    """
-                    UPDATE video_submissions 
-                    SET filename = %s, filesize = %s, minio_bucket = %s, minio_object_name = %s
-                    WHERE submission_id = %s
-                    """,
-                    (os.path.basename(video_path), os.path.getsize(video_path), 
-                     settings.MINIO_MEDIA_BUCKET, original_obj, submission_id)
-                )
-                conn.commit()
-            print(f"✅ Updated submission: {submission_id}")
-            print(f"🔍 Database update successful, video separation complete!")
-            
-            db_submission_id = submission_id  # Use the same ID
-            
-            # Create processing job
-            job_id = self._create_processing_job(db_submission_id, "PROCESSING")
-            
-            # Update status to completed - video separation is done
-            self._update_status(db_submission_id, "completed")
-            self._update_processing_job(db_submission_id, "DONE")
-            print(f"✅ Video separation completed successfully: {db_submission_id}")
-            
-            # NOTE: Transcription is now manual via the "Transcribe Audio" button
-            # It will be triggered by POST /api/v1/transcripts/{submission_id}/generate
-            
-            return db_submission_id  # Return the database submission_id for file URLs
+            # 5) Update database entry with MinIO details
+            print(f"🔍 Updating database entry for submission: {submission_id}")
+            conn = self._get_pg_conn()
+            try:
+                # Update the existing database entry with file details
+                with conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE video_submissions 
+                        SET filename = %s, filesize = %s, minio_bucket = %s, minio_object_name = %s
+                        WHERE submission_id = %s
+                        """,
+                        (os.path.basename(video_path), os.path.getsize(video_path), 
+                         settings.MINIO_MEDIA_BUCKET, original_obj, submission_id)
+                    )
+                    conn.commit()
+                print(f"✅ Updated submission: {submission_id}")
+                print(f"🔍 Database update successful, video separation complete!")
+                
+                db_submission_id = submission_id  # Use the same ID
+                
+                # Create processing job
+                job_id = self._create_processing_job(db_submission_id, "PROCESSING")
+                
+                # Update status to completed - video separation is done
+                self._update_status(db_submission_id, "completed")
+                self._update_processing_job(db_submission_id, "DONE")
+                print(f"✅ Video separation completed successfully: {db_submission_id}")
+                
+                # NOTE: Transcription is now manual via the "Transcribe Audio" button
+                # It will be triggered by POST /api/v1/transcripts/{submission_id}/generate
+                
+                return db_submission_id  # Return the database submission_id for file URLs
+            except Exception as e:
+                # Update status to failed if something goes wrong
+                if 'db_submission_id' in locals():
+                    self._update_status(db_submission_id, "failed")
+                    self._update_processing_job(db_submission_id, "FAILED", str(e))
+                raise
+            finally:
+                conn.close()
+                
         except Exception as e:
-            # Update status to failed if something goes wrong
-            if 'db_submission_id' in locals():
-                self._update_status(db_submission_id, "failed")
-                self._update_processing_job(db_submission_id, "FAILED", str(e))
+            # If any error occurs, close clip if needed
+            if clip:
+                try:
+                    clip.close()
+                except:
+                    pass
             raise
         finally:
-            conn.close()
-        
-        # Cleanup temporary files
-        try:
-            import shutil
-            shutil.rmtree(temp_dir)
-            print(f"🧹 Cleaned up temp directory: {temp_dir}")
-        except Exception as e:
-            print(f"⚠️ Failed to cleanup temp directory: {e}")
+            # ALWAYS cleanup temporary directory, even if errors occurred
+            try:
+                import shutil
+                if os.path.exists(temp_dir):
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    print(f"🧹 Cleaned up temp directory: {temp_dir}")
+            except Exception as cleanup_error:
+                print(f"⚠️ Failed to cleanup temp directory: {cleanup_error}")
     
     def _get_pg_conn(self):
         """Get PostgreSQL connection"""
