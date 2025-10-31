@@ -1,134 +1,266 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { Upload, FileVideo, MessageSquare, Loader, CheckCircle, AlertCircle, Play, Mic, FileText, Bot, BrainCircuit, Eye as BodyLanguageIcon, Clock } from 'lucide-react';
-import { videoAPI, transcriptAPI } from '../services/api';
+import {
+  Upload,
+  FileVideo,
+  MessageSquare,
+  Loader,
+  CheckCircle,
+  AlertCircle,
+  Bot,
+} from 'lucide-react';
+import { videoAPI } from '../services/api';
+
+/**
+ * Improved VideoUpload component
+ * - Same theme / colors as your app
+ * - Cleaner structure: small subcomponents inside file
+ * - Accessibility improvements (aria labels, roles)
+ * - No glowing effects: injected CSS overrides to neutralize glow/pulse
+ * - Better file preview (thumbnail + size), confirm removal
+ * - Clear states and progress with accessible progress bar
+ */
+
+const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+
+const InlineNoGlowOverrides = () => (
+  <style>
+    {`/* Overrides to remove glow/pulse while keeping theme */
+      .dashboard-header h1 { text-shadow: none !important; }
+      .upload-zone { animation: none !important; }
+      .upload-zone:hover { transform: none !important; }
+      .upload-icon { background: transparent !important; box-shadow: none !important; }
+      .segment-item.playing { box-shadow: none !important; background-color: rgba(250, 250, 180, 0.04) !important; }
+      .submit-btn:hover { box-shadow: none !important; }
+      .remove-file-btn:hover { box-shadow: none !important; transform: none !important; }
+    `}
+  </style>
+);
+
+function HumanFileSize(size) {
+  if (size === 0) return '0 B';
+  const i = Math.floor(Math.log(size) / Math.log(1024));
+  return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['B', 'KB', 'MB', 'GB'][i];
+}
+
+const FilePreview = ({ file, onRemove }) => {
+  const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  return (
+    <div className="file-preview" role="group" aria-label="Selected video file">
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flex: 1 }}>
+        <div style={{ width: 110, height: 64, borderRadius: 8, overflow: 'hidden', background: 'var(--bg-dark)' }}>
+          {url ? (
+            <video src={url} width="110" height="64" muted playsInline />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <FileVideo size={28} />
+            </div>
+          )}
+        </div>
+        <div className="file-info">
+          <h4 style={{ margin: 0 }}>{file.name}</h4>
+          <p style={{ margin: 0, color: 'var(--text-muted)' }}>{HumanFileSize(file.size)}</p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          type="button"
+          aria-label="Remove selected file"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm('Remove the selected file?')) onRemove();
+          }}
+          className="remove-file-btn"
+        >
+          &times;
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const Stepper = ({ steps, activeKey, doneSet, error }) => (
+  <div className="stepper" aria-hidden={false}>
+    {steps.map((s) => {
+      const isActive = activeKey === s.key;
+      const isDone = doneSet.has(s.key) || (s.key === 'complete' && activeKey === 'complete');
+      const isError = error && !isDone && !isActive;
+      return (
+        <div
+          key={s.key}
+          className={`step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${isError ? 'error' : ''}`}
+          aria-current={isActive ? 'step' : undefined}
+        >
+          <span className="step-icon" aria-hidden>
+            {isDone ? '✓' : isActive ? <Loader className="spinning" size={12} /> : '•'}
+          </span>
+          <span className="step-label">{s.label}</span>
+        </div>
+      );
+    })}
+  </div>
+);
+
+const ProgressBar = ({ value, label }) => (
+  <div className="progress-section" style={{ padding: 12 }}>
+    <div className="progress-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span className="progress-step">{label}</span>
+      <span className="progress-percentage">{Math.round(value)}%</span>
+    </div>
+    <div
+      className="progress-bar"
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(value)}
+      aria-label={label}
+      style={{ marginTop: 8 }}
+    >
+      <div className="progress-fill" style={{ width: `${value}%` }} />
+    </div>
+  </div>
+);
 
 const VideoUpload = ({ onUploadSuccess }) => {
   const navigate = useNavigate();
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processingStep, setProcessingStep] = useState('');
-  const [formData, setFormData] = useState({
-    topic: ''
-  });
+  const [formData, setFormData] = useState({ topic: '' });
   const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadStatus, setUploadStatus] = useState('idle'); // idle, uploading, processing, completed, error
-  const [transcriptionStatus, setTranscriptionStatus] = useState('idle'); // idle, transcribing, completed, error
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
-  const [transcriptText, setTranscriptText] = useState('');
+  const [uploadStatus, setUploadStatus] = useState('idle');
   const [submissionId, setSubmissionId] = useState(null);
+  const [lockedSession, setLockedSession] = useState(false);
+  const [lockedFileName, setLockedFileName] = useState('');
+  const [lockedFileSize, setLockedFileSize] = useState(0);
+  const [activeStep, setActiveStep] = useState('idle');
+  const [doneSteps, setDoneSteps] = useState(new Set());
 
-  // Handle file drop (LOGIC UNCHANGED)
+  const steps = [
+    { key: 'upload', label: 'Uploading video' },
+    { key: 'separation', label: 'Audio/Video separation' },
+    { key: 'minio', label: 'Uploading derived files' },
+    { key: 'complete', label: 'Processing complete' },
+  ];
+
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
-    if (file) {
-      if (!file.type.startsWith('video/')) {
-        toast.error('Please select a valid video file');
-        return;
-      }
-      const maxSize = 100 * 1024 * 1024; // 100MB
-      if (file.size > maxSize) {
-        toast.error('File size must be less than 100MB');
-        return;
-      }
-      setSelectedFile(file);
-      toast.success(`Selected: ${file.name}`);
-    }
+    if (!file) return;
+    if (!file.type.startsWith('video/')) return toast.error('Please select a valid video file');
+    if (file.size > MAX_SIZE) return toast.error('File size must be less than 100MB');
+    setSelectedFile(file);
+    setLockedSession(false);
+    toast.dismiss();
+    toast.success(`Selected: ${file.name}`);
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {
-      'video/*': ['.mp4', '.mov', '.webm']
-    },
-    multiple: false
+    accept: { 'video/*': ['.mp4', '.mov', '.webm'] },
+    multiple: false,
+    disabled: isUploading || uploadStatus !== 'idle',
   });
 
-  // Handle form input changes (LOGIC UNCHANGED)
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((p) => ({ ...p, [name]: value }));
   };
 
-  // Handle form submission (LOGIC UNCHANGED)
+  const handleRemoveFile = () => setSelectedFile(null);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedFile) {
-      toast.error('Please select a video file');
-      return;
-    }
-    if (!formData.topic.trim()) {
-      toast.error('Please enter a presentation topic');
-      return;
-    }
+    if (!selectedFile) return toast.error('Please select a video file');
+    if (!formData.topic.trim()) return toast.error('Please enter a presentation topic');
+
     setIsUploading(true);
     setUploadStatus('uploading');
-    setUploadProgress(0);
+    setUploadProgress(5);
     setProcessingStep('Preparing upload...');
+    setActiveStep('upload');
+    setDoneSteps(new Set());
+
     try {
       setUploadProgress(20);
       setProcessingStep('Uploading video...');
       const response = await videoAPI.uploadVideo(selectedFile, formData.topic);
+
       setUploadProgress(40);
       setUploadStatus('processing');
-      setProcessingStep('Video uploaded! Processing in background...');
-      toast.success('Video uploaded successfully! Processing...');
+      setProcessingStep('Video uploaded. Processing started...');
+      setDoneSteps((prev) => new Set(prev).add('upload'));
+      setActiveStep('separation');
+
+      toast.success('Video uploaded! Processing in background.');
       pollProcessingStatus(response.submission_id);
-    } catch (error) {
-      console.error('Upload error:', error);
+    } catch (err) {
+      console.error(err);
       setUploadStatus('error');
+      setActiveStep('error');
       setProcessingStep('Upload failed');
-      toast.error(error.message || 'Upload failed. Please try again.');
+      toast.error(err.message || 'Upload failed.');
     } finally {
       setIsUploading(false);
     }
   };
 
-  // Poll processing status (LOGIC UNCHANGED)
-  const pollProcessingStatus = async (submissionId) => {
-    const maxAttempts = 30; // Poll for up to 5 minutes (10 seconds * 30)
+  const pollProcessingStatus = async (submission_id) => {
     let attempts = 0;
-    const pollInterval = setInterval(async () => {
+    const maxAttempts = 30;
+    const interval = setInterval(async () => {
+      attempts++;
       try {
-        attempts++;
-        const status = await videoAPI.getStatus(submissionId);
+        const status = await videoAPI.getStatus(submission_id);
         if (status.status === 'processing') {
-          setUploadProgress(status.progress || 50);
-          setProcessingStep('Processing video... Separating audio and video...');
+          setUploadProgress(status.progress || Math.min(60, uploadProgress + 10));
+          if ((status.progress || 0) < 60) {
+            setProcessingStep('Processing video... separating audio and video');
+            setActiveStep('separation');
+          } else {
+            setProcessingStep('Uploading derived files');
+            setDoneSteps((p) => new Set(p).add('separation'));
+            setActiveStep('minio');
+          }
         } else if (status.status === 'completed') {
-          clearInterval(pollInterval);
+          clearInterval(interval);
           setUploadProgress(100);
           setUploadStatus('completed');
-          setProcessingStep('Processing completed successfully!');
-          toast.success('Video processed successfully!');
-          setSubmissionId(submissionId);
-          if (onUploadSuccess) {
-            onUploadSuccess(submissionId);
-          }
+          setProcessingStep('Processing complete');
+          setDoneSteps((p) => new Set([...p, 'separation', 'minio']));
+          setActiveStep('complete');
+          setSubmissionId(submission_id);
+          // persist session + basic file info so upload stays locked
+          try {
+            localStorage.setItem('oratoai_submission_id', submission_id);
+            if (selectedFile) {
+              localStorage.setItem('oratoai_file_name', selectedFile.name);
+              localStorage.setItem('oratoai_file_size', String(selectedFile.size || 0));
+            }
+          } catch {}
+          toast.success('Processing completed successfully!');
+          if (onUploadSuccess) onUploadSuccess(submission_id);
         } else if (status.status === 'failed') {
-          clearInterval(pollInterval);
+          clearInterval(interval);
           setUploadStatus('error');
+          setActiveStep('error');
           setProcessingStep('Processing failed');
-          toast.error('Video processing failed. Please try again.');
+          toast.error('Processing failed.');
         }
+
         if (attempts >= maxAttempts) {
-          clearInterval(pollInterval);
-          setUploadProgress(90);
-          setProcessingStep('Processing is taking longer than expected...');
-          toast.info('Processing is taking longer than expected. You can check the status page for updates.');
-          setTimeout(() => {
-            navigate(`/status/${submissionId}`);
-          }, 2000);
+          clearInterval(interval);
+          setUploadProgress((p) => Math.min(95, p));
+          setProcessingStep('Processing is taking longer than expected');
+          toast.info('Processing is taking longer than expected.');
+          setTimeout(() => navigate(`/status/${submission_id}`), 1300);
         }
-      } catch (error) {
-        console.error('Error checking processing status:', error);
+      } catch (e) {
+        console.error('Polling error', e);
         if (attempts >= maxAttempts) {
-          clearInterval(pollInterval);
+          clearInterval(interval);
           setUploadStatus('error');
           setProcessingStep('Unable to check processing status');
         }
@@ -136,78 +268,52 @@ const VideoUpload = ({ onUploadSuccess }) => {
     }, 10000);
   };
 
-  // Start transcription (LOGIC UNCHANGED)
-  const startTranscription = async () => {
-    if (!submissionId) return;
-    setTranscriptionStatus('transcribing');
-    setTranscriptionProgress(10);
+  // Lock UI if an active session exists
+  React.useEffect(() => {
     try {
-      const response = await transcriptAPI.generate(submissionId);
-      console.log('Transcription started:', response);
-      setTranscriptionProgress(20);
-      toast.success('Transcription started! Processing audio...');
-      let attempts = 0;
-      const maxAttempts = 60; // up to ~5 minutes at 5s interval
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          const st = await transcriptAPI.getStatus(submissionId);
-          console.log('Transcription status:', st);
-          if (st.progress) {
-            setTranscriptionProgress(st.progress);
-          }
-          if (st.status === 'completed') {
-            clearInterval(poll);
-            setTranscriptionProgress(100);
-            setTranscriptionStatus('completed');
-            const txt = await transcriptAPI.getText(submissionId);
-            setTranscriptText(txt.text || 'No transcript available');
-            toast.success('Transcription completed successfully!');
-          } else if (st.status === 'failed') {
-            clearInterval(poll);
-            setTranscriptionStatus('error');
-            toast.error(st.error_message || 'Transcription failed.');
-          } else if (st.status === 'processing') {
-            setTranscriptionProgress(p => Math.min(p + 5, 90));
-          }
-          if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            setTranscriptionStatus('error');
-            toast.error('Transcription is taking longer than expected.');
-          }
-        } catch (e) {
-          console.error('Error polling transcription status:', e);
-          if (attempts >= maxAttempts) {
-            clearInterval(poll);
-            setTranscriptionStatus('error');
-            toast.error(e.message || 'Failed to check transcription status.');
-          }
-        }
-      }, 5000);
-    } catch (error) {
-      console.error('Transcription error:', error);
-      setTranscriptionStatus('error');
-      toast.error(error.response?.data?.detail || 'Failed to start transcription.');
-    }
+      const sid = localStorage.getItem('oratoai_submission_id');
+      if (sid) {
+        setSubmissionId(sid);
+        setLockedSession(true);
+        setLockedFileName(localStorage.getItem('oratoai_file_name') || '');
+        setLockedFileSize(Number(localStorage.getItem('oratoai_file_size') || 0));
+      }
+    } catch {}
+  }, []);
+
+  const handleUploadNewVideo = () => {
+    try {
+      localStorage.removeItem('oratoai_submission_id');
+      localStorage.removeItem('oratoai_file_name');
+      localStorage.removeItem('oratoai_file_size');
+    } catch {}
+    setLockedSession(false);
+    setSelectedFile(null);
+    setSubmissionId(null);
+    setUploadStatus('idle');
+    setProcessingStep('');
+    setUploadProgress(0);
+    setActiveStep('idle');
+    setDoneSteps(new Set());
   };
 
   return (
     <div className="dashboard-container">
+      <InlineNoGlowOverrides />
+
       <div className="dashboard-header">
         <h1>Your Personal Presentation Coach</h1>
         <p>Upload your presentation video to get instant, AI-powered feedback.</p>
       </div>
 
       <div className="dashboard-content">
-        {/* Main Upload Card */}
-        <div className="upload-card">
-          <div className="upload-header">
-            <div className="upload-icon">
-              <Bot size={32} />
+        <div className="upload-card" role="region" aria-label="Video upload card">
+          <div className="upload-header" style={{ alignItems: 'center' }}>
+            <div className="upload-icon" aria-hidden>
+              <Bot size={28} />
             </div>
             <div className="upload-title">
-              <h2>Start New Analysis</h2>
-              <p>Get detailed analysis of your presentation skills</p>
+              <p style={{ margin: 0 }}>Get detailed analysis of your presentation skills</p>
             </div>
           </div>
 
@@ -215,51 +321,53 @@ const VideoUpload = ({ onUploadSuccess }) => {
             <div className="upload-zone-container">
               <div
                 {...getRootProps()}
-                className={`upload-zone ${isDragActive ? 'drag-active' : ''} ${selectedFile ? 'file-selected' : ''} ${uploadStatus}`}
+                className={`upload-zone ${isDragActive ? 'drag-active' : ''} ${selectedFile ? 'file-selected' : ''} ${uploadStatus} ${lockedSession ? 'locked' : ''}`}
+                tabIndex={0}
+                role="button"
+                aria-label="File upload dropzone"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.currentTarget.querySelector('input')?.click();
+                }}
               >
-                <input {...getInputProps()} disabled={isUploading || uploadStatus !== 'idle'} />
-                
-                {uploadStatus === 'idle' && !selectedFile && (
+                <input {...getInputProps()} aria-hidden={false} disabled={lockedSession} />
+
+                {lockedSession && (
+                  <div className="upload-placeholder">
+                    <div className="upload-icon-large"><Upload size={48} /></div>
+                    <h3 style={{ margin: 0 }}>Active upload in progress</h3>
+                    <p style={{ margin: 0, color: 'var(--text-muted)' }}>
+                      {lockedFileName || 'Video selected'}{lockedFileSize ? ` • ${(lockedFileSize / (1024*1024)).toFixed(2)} MB` : ''}
+                    </p>
+                    <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                      <a href={`/status/${submissionId}`} className="btn">View Status</a>
+                      <button type="button" className="btn btn-secondary" onClick={handleUploadNewVideo}>Upload New Video</button>
+                    </div>
+                  </div>
+                )}
+
+                {uploadStatus === 'idle' && !selectedFile && !lockedSession && (
                   <div className="upload-placeholder">
                     <div className="upload-icon-large">
                       <Upload size={48} />
                     </div>
-                    <h3>Drop your video here</h3>
-                    <p>or <span className="upload-link">browse files</span></p>
-                    <div className="upload-formats">
+                    <h3 style={{ margin: 0 }}>Drop your video here</h3>
+                    <p style={{ margin: 0 }}>or <span className="upload-link" style={{ cursor: 'pointer' }}>browse files</span></p>
+                    <div className="upload-formats" style={{ marginTop: 8 }}>
                       <span>Supports: MP4, MOV, WebM</span>
-                      <span>Max size: 100MB</span>
+                      <span style={{ marginLeft: 12 }}>Max size: 100MB</span>
                     </div>
                   </div>
                 )}
 
-                {selectedFile && uploadStatus === 'idle' && (
-                  <div className="file-preview">
-                    <div className="file-icon">
-                      <FileVideo size={48} />
-                    </div>
-                    <div className="file-info">
-                      <h4>{selectedFile.name}</h4>
-                      <p>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedFile(null);
-                      }}
-                      className="remove-file-btn"
-                    >
-                      &times;
-                    </button>
-                  </div>
+                {selectedFile && uploadStatus === 'idle' && !lockedSession && (
+                  <FilePreview file={selectedFile} onRemove={handleRemoveFile} />
                 )}
 
                 {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-                  <div className="processing-state">
+                  <div className="processing-state" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <Loader className="spinning" size={48} />
-                    <h3>{uploadStatus === 'uploading' ? 'Uploading...' : 'Analyzing Presentation...'}</h3>
-                    <p>{processingStep}</p>
+                    <h3 style={{ margin: 0 }}>{uploadStatus === 'uploading' ? 'Uploading...' : 'Analyzing Presentation...'}</h3>
+                    <p style={{ margin: 0 }}>{processingStep}</p>
                   </div>
                 )}
 
@@ -281,12 +389,13 @@ const VideoUpload = ({ onUploadSuccess }) => {
               </div>
             </div>
 
-            <div className="topic-section">
-              <label className="topic-label">
-                <MessageSquare size={20} />
+            <div className="topic-section" style={{ marginBottom: 16 }}>
+              <label className="topic-label" htmlFor="topic">
+                <MessageSquare size={18} />
                 Presentation Topic
               </label>
               <input
+                id="topic"
                 type="text"
                 name="topic"
                 value={formData.topic}
@@ -295,120 +404,41 @@ const VideoUpload = ({ onUploadSuccess }) => {
                 placeholder="e.g., Q4 Marketing Strategy, The Future of AI"
                 required
                 disabled={isUploading || uploadStatus !== 'idle'}
+                aria-required
               />
             </div>
-            
+
             {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
-              <div className="progress-section">
-                <div className="progress-header">
-                  <span className="progress-step">{processingStep}</span>
-                  <span className="progress-percentage">{Math.round(uploadProgress)}%</span>
-                </div>
-                <div className="progress-bar">
-                  <div 
-                    className="progress-fill" 
-                    style={{ width: `${uploadProgress}%` }}
-                  />
-                </div>
+              <div style={{ marginBottom: 12 }}>
+                <ProgressBar value={uploadProgress} label={processingStep || 'Processing'} />
+                <Stepper steps={steps} activeKey={activeStep} doneSet={doneSteps} error={activeStep === 'error'} />
               </div>
             )}
 
-            <div className="submit-section">
+            <div className="submit-section" style={{ marginTop: 8 }}>
               <button
                 type="submit"
                 className="submit-btn"
                 disabled={isUploading || !selectedFile || !formData.topic.trim() || uploadStatus === 'completed'}
               >
-                {uploadStatus === 'idle' && <><Upload size={20} /> Upload & Analyze</>}
-                {uploadStatus === 'uploading' && <><Loader className="spinning" size={20} /> Uploading...</>}
-                {uploadStatus === 'processing' && <><Loader className="spinning" size={20} /> Analyzing...</>}
-                {uploadStatus === 'completed' && <><CheckCircle size={20} /> Analysis Complete</>}
-                {uploadStatus === 'error' && <> Try Again</>}
+                {uploadStatus === 'idle' && <><Upload size={18} /> Upload &amp; Analyze</>}
+                {uploadStatus === 'uploading' && <><Loader className="spinning" size={18} /> Uploading...</>}
+                {uploadStatus === 'processing' && <><Loader className="spinning" size={18} /> Analyzing...</>}
+                {uploadStatus === 'completed' && <><CheckCircle size={18} /> Analysis Complete</>}
+                {uploadStatus === 'error' && <>Try Again</>}
               </button>
             </div>
 
-            {uploadStatus === 'completed' && (
-              <div className="transcription-section">
-                <div className="transcription-header">
-                  <h3><Mic size={20} /> Audio Transcription</h3>
-                  <p>Generate and review the transcript from your presentation audio.</p>
-                </div>
-
-                {transcriptionStatus === 'idle' && (
-                  <button onClick={startTranscription} className="transcribe-btn">
-                    <Mic size={20} /> Generate Transcript
-                  </button>
-                )}
-                
-                {transcriptionStatus === 'transcribing' && (
-                  <div className="transcription-progress">
-                    <div className="progress-header">
-                      <span>Transcribing audio...</span>
-                      <span>{Math.round(transcriptionProgress)}%</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${transcriptionProgress}%` }} />
-                    </div>
-                  </div>
-                )}
-                
-                {transcriptionStatus === 'completed' && transcriptText && (
-                  <div className="transcript-display">
-                    <div className="transcript-header">
-                      <h4><FileText size={20} /> Transcript</h4>
-                      <a href={`/transcript/${submissionId}`} className="btn btn-sm btn-secondary">View Full Transcript</a>
-                    </div>
-                    <div className="transcript-content">
-                      {transcriptText.substring(0, 300)}...
-                    </div>
-                  </div>
-                )}
-                
-                {transcriptionStatus === 'error' && (
-                  <div className="transcription-error">
-                    <AlertCircle size={20} />
-                    <span>Transcription failed.</span>
-                    <button onClick={startTranscription} className="retry-btn">Retry</button>
-                  </div>
-                )}
+            {uploadStatus === 'completed' && submissionId && (
+              <div className="text-center" style={{ marginTop: 12 }}>
+                <a href={`/status/${submissionId}`} className="btn">View Status</a>
               </div>
             )}
           </form>
         </div>
 
-        <div className="features-card">
-          <h3>What You'll Get</h3>
-          <div className="features-grid">
-            <div className="feature-item">
-              <div className="feature-icon"><Play size={24} /></div>
-              <div className="feature-content">
-                <h4>Speech Analysis</h4>
-                <p>Pacing, filler words, fluency, and clarity.</p>
-              </div>
-            </div>
-            <div className="feature-item">
-              <div className="feature-icon"><BrainCircuit size={24} /></div>
-              <div className="feature-content">
-                <h4>Content & Structure</h4>
-                <p>Clarity of message and logical flow assessment.</p>
-              </div>
-            </div>
-            <div className="feature-item">
-              <div className="feature-icon"><BodyLanguageIcon size={24} /></div>
-              <div className="feature-content">
-                <h4>Body Language</h4>
-                <p>Posture, gestures, and eye contact analysis.</p>
-              </div>
-            </div>
-            <div className="feature-item">
-              <div className="feature-icon"><Clock size={24} /></div>
-              <div className="feature-content">
-                <h4>Time Management</h4>
-                <p>Track your time allocation per slide or topic.</p>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* Minimal right-side area: you can put features or tips here */}
+        <div style={{ display: 'none' }} aria-hidden />
       </div>
     </div>
   );

@@ -15,8 +15,8 @@
   
   --primary-yellow: #fde047; /* Yellow-300 */
   --primary-yellow-dark: #facc15; /* Yellow-400 */
-  --primary-yellow-glow: rgba(253, 224, 71, 0.1);
-  --primary-yellow-shadow: rgba(253, 224, 71, 0.3);
+  /* --primary-yellow-glow: rgba(253, 224, 71, 0.1); */ /* Removed glow */
+  /* --primary-yellow-shadow: rgba(253, 224, 71, 0.3); */ /* Removed glow */
 
   --text-light: #f3f4f6; /* Gray-100 */
   --text-dark: #111827; /* Gray-900 */
@@ -29,6 +29,10 @@
   --info: #3b82f6;
   --warning: #f97316;
 }
+
+/* (duplicate base styles removed) */
+
+
 
 /* --- 2. Base Styles --- */
 * {
@@ -56,6 +60,7 @@ body {
 }
 
 /* --- 3. Core Components (Cards, Buttons, Forms) --- */
+/* (Unchanged .card styles) */
 .card {
   background: var(--bg-card);
   backdrop-filter: blur(12px);
@@ -84,9 +89,10 @@ body {
 }
 
 .btn:hover:not(:disabled) {
-  transform: scale(1.05);
+  /* --- MODIFIED: "Decent" hover, no glow --- */
+  transform: translateY(-2px);
   background: var(--primary-yellow-dark);
-  box-shadow: 0 5px 20px var(--primary-yellow-shadow);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .btn:disabled {
@@ -111,15 +117,21 @@ body {
 
 /* Form Styles */
 .form-group {
-  margin-bottom: 20px; /* From original */
+  /* --- MODIFIED: Gap on parent controls spacing --- */
+
+  margin-bottom: 0; 
 }
 
 .form-label,
 .form-group label {
-  display: block;
+  /* --- MODIFIED: For icon + text labels --- */
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
-  font-weight: 500;
-  color: var(--text-light);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 .form-input,
@@ -127,13 +139,15 @@ body {
 .topic-input,
 .form-group input {
   width: 100%;
-  padding: 12px 16px;
+  /* --- MODIFIED: Taller, modern inputs --- */
+  padding: 14px 16px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: 10px; /* Softer radius */
+  font-size: 1rem;
   font-family: var(--font-sans);
   transition: all 0.3s ease;
-  background: rgba(0,0,0,0.2);
+  /* --- MODIFIED: Use card bg for more contrast --- */
+  background: var(--bg-card);
   color: var(--text-light);
 }
 
@@ -143,7 +157,8 @@ body {
 .form-group input:focus {
   outline: none;
   border-color: var(--primary-yellow);
-  box-shadow: 0 0 15px var(--primary-yellow-glow), 0 0 0 1px var(--primary-yellow);
+  /* --- MODIFIED: "Decent" focus ring, no glow --- */
+  box-shadow: 0 0 0 2px var(--primary-yellow);
 }
 
 .form-group input.error {
@@ -286,7 +301,9 @@ nav .btn-secondary:hover:not(:disabled) {
 /* --- 5. VideoUpload.js (Dashboard & Wave Animation) --- */
 .dashboard-container {
   min-height: 100vh;
-  padding: 0 20px 20px; /* Remove top padding, header handles it */
+  padding: 0 20px 40px; /* a bit more breathing room */
+  display: flex;
+  flex-direction: column;
 }
 
 .dashboard-header {
@@ -328,14 +345,15 @@ nav .btn-secondary:hover:not(:disabled) {
 }
 
 .dashboard-content {
-  max-width: 1200px;
+  max-width: 1320px; /* wider layout */
   margin: -80px auto 0; /* Pull content up over the wave */
   position: relative; /* Ensure content is on top of wave */
   z-index: 10;
   display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 30px;
+  grid-template-columns: 1fr; /* single centered column */
+  gap: 24px;
   align-items: start;
+  justify-items: center; /* center children horizontally */
 }
 
 /* Upload Card */
@@ -347,6 +365,8 @@ nav .btn-secondary:hover:not(:disabled) {
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   overflow: hidden;
+  width: 100%;
+  max-width: 1140px; /* wider card */
 }
 
 .upload-header {
@@ -468,11 +488,19 @@ nav .btn-secondary:hover:not(:disabled) {
 .topic-help { color: var(--text-muted); font-size: 0.9rem; }
 
 /* Progress */
-.progress-section { background: var(--bg-glass-hover); border: 1px solid var(--border-color); }
+.progress-section { background: var(--bg-glass-hover); border: 1px solid var(--border-color); border-radius: 10px; }
 .progress-step { color: var(--text-light); }
 .progress-percentage { color: var(--primary-yellow); }
-.progress-bar { background: var(--border-color); height: 12px; }
+.progress-bar { background: var(--border-color); height: 12px; border-radius: 999px; overflow: hidden; }
 .progress-fill { background: var(--primary-yellow); }
+
+/* Stepper */
+.stepper { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 6px 2px; }
+.step { display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 0.95rem; }
+.step .step-icon { width: 18px; display: inline-flex; align-items: center; justify-content: center; }
+.step.active { color: var(--text-light); }
+.step.done { color: var(--success); }
+.step.error { color: var(--danger); }
 
 /* Submit */
 .submit-btn {
@@ -723,9 +751,9 @@ nav .btn-secondary:hover:not(:disabled) {
   box-shadow: 0 0 8px var(--primary-yellow-shadow);
 }
 
-/* --- 8. AuthForm.js & ProtectedRoute.js --- */
 .auth-form-container {
-  min-height: 80vh;
+  /* --- MODIFIED: Fill screen --- */
+  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -733,27 +761,58 @@ nav .btn-secondary:hover:not(:disabled) {
 }
 
 .auth-form {
-  background: var(--bg-card);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 16px;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 0 40px rgba(0,0,0,0.3);
-  padding: 40px;
+  /* --- MODIFIED: Borderless, no glow --- */
+  background: transparent;
+  backdrop-filter: none;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  padding: 0;
   width: 100%;
   max-width: 420px;
-  /* Glow effect */
-  box-shadow: 0 0 40px rgba(0,0,0,0.3), 0 0 60px var(--primary-yellow-glow);
+}
+.auth-header {
+  /* --- MODIFIED: Center-align header --- */
+  text-align: center;
+  margin-bottom: 40px;
 }
 
-.auth-header h2 { color: var(--text-light); font-size: 2rem; }
-.auth-header p { color: var(--text-muted); }
+/* --- NEW: Style for the icon --- */
+.auth-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--primary-yellow);
+  color: var(--text-dark);
+  margin: 0 auto 24px;
+}
+
+.auth-header h2 { 
+  color: var(--text-light); 
+  /* --- MODIFIED: Larger title --- */
+  font-size: 2.5rem; 
+  margin-bottom: 8px;
+}
+.auth-header p { 
+  color: var(--text-muted); 
+  font-size: 1.1rem;
+}
+
+/* --- NEW: Style for form fields wrapper --- */
+.auth-form-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
 
 .password-input { position: relative; }
 .password-toggle {
   position: absolute;
-  right: 12px;
-  /* Center the icon */
+  /* --- MODIFIED: Align with padding --- */
+  right: 16px;
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -771,13 +830,25 @@ nav .btn-secondary:hover:not(:disabled) {
   color: var(--text-dark);
   font-weight: 700;
   width: 100%;
-  margin-top: 10px;
+  /* --- MODIFIED: More spacing, matching inputs --- */
+  margin-top: 20px;
+  border-radius: 10px;
+  padding: 14px 24px;
+  font-size: 1rem;
 }
 .auth-submit-btn:hover:not(:disabled) {
-  box-shadow: 0 5px 20px var(--primary-yellow-shadow);
+  /* --- MODIFIED: Use global "decent" hover --- */
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
-.auth-footer { border-top: 1px solid var(--border-color); }
+.auth-footer { 
+  border-top: 1px solid var(--border-color);
+  /* --- MODIFIED: More spacing & centered --- */
+  margin-top: 32px;
+  padding-top: 24px;
+  text-align: center;
+}
 .auth-footer p { color: var(--text-muted); }
 .auth-switch-btn {
   background: none;
@@ -786,6 +857,7 @@ nav .btn-secondary:hover:not(:disabled) {
   cursor: pointer;
   font-weight: 600;
   text-decoration: none;
+  margin-left: 6px; /* Added spacing */
 }
 .auth-switch-btn:hover {
   text-decoration: underline;
@@ -803,6 +875,8 @@ nav .btn-secondary:hover:not(:disabled) {
   gap: 16px;
   min-height: 200px;
 }
+
+/* (duplicate auth + loading styles removed) */
 
 /* --- 9. Animations & Utils --- */
 .spinning,
@@ -863,26 +937,134 @@ div[role="status"] {
   color: var(--text-light) !important;
 }
 
-/* --- 11. Responsive Design --- */
+/* Landing page layout */
+.landing-page {
+  min-height: 100vh;
+  background: radial-gradient(1000px 600px at 75% 50%, rgba(41, 98, 255, 0.18), transparent),
+              linear-gradient(180deg, #0a0f1f 0%, #070a14 100%);
+}
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+}
+.landing-header .brand { color: #f6f7fb; font-weight: 800; font-size: 22px; letter-spacing: .2px; }
+.landing-header .auth-actions { display: flex; gap: 10px; }
+
+/* Landing hero section */
+.landing-hero {
+  max-width: 1200px;
+  margin: 0 auto;
+  min-height: calc(100vh - 70px);
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  align-items: center;
+  gap: 40px;
+  color: #f6f7fb;
+  padding: 24px;
+}
+.landing-hero__content { padding: 40px 0; }
+.landing-hero h1 { font-size: clamp(36px, 5vw, 58px); line-height: 1.1; margin: 0 0 16px; }
+.landing-hero .highlight { color: #f2c744; }
+.landing-hero .subtitle { color: #b7bdc9; margin: 8px 0 24px; max-width: 720px; }
+.landing-hero .cta-row { display: flex; gap: 12px; }
+
+/* Right visual - sharp (no blur) */
+.landing-hero__visual {
+  height: 56vh;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(242,199,68,0.35), rgba(242,199,68,0.0) 55%),
+    radial-gradient(circle at 25% 30%, rgba(41,98,255,0.25), rgba(41,98,255,0.0) 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
+  box-shadow: 0 18px 60px rgba(0,0,0,0.5);
+}
+.landing-hero__visual.sharp { filter: none; }
+
 @media (max-width: 768px) {
-  .dashboard-content {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    margin-top: -60px; /* Adjust pull-up for mobile */
+  .landing-hero { grid-template-columns: 1fr; }
+}
+
+
+/* --- 6. VideoStatus.js (NEW & IMPROVED STYLES) --- */
+/* (Add these styles to the end of your index.css) */
+
+.status-page-header {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text-light);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Status Summary Grid (replaces old .grid styles for this page) */
+.status-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+
+.status-summary-grid h4 { 
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.status-summary-grid p { 
+  color: var(--text-light); 
+  font-weight: 600; 
+  font-size: 1rem;
+  margin: 0;
+  word-break: break-all; /* Fix for long submission IDs */
+}
+
+/* Completed State Action Buttons */
+.status-actions {
+  display: grid;
+  grid-template-columns: 1fr; /* Default to 1 column on mobile */
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+/* On larger screens, show buttons side-by-side */
+@media (min-width: 640px) {
+  .status-actions {
+    grid-template-columns: 1fr 1fr;
   }
-  
-  .dashboard-header h1 { font-size: 2.2rem; }
-  .dashboard-header { padding: 20px 0 80px; }
-  .dashboard-header::after { height: 100px; }
-  
-  .header-content { flex-direction: column; text-align: center; }
-  .header-left { text-align: center; }
-  
-  .segment-item { flex-direction: column; align-items: flex-start; }
-  .auth-form { padding: 30px 20px; }
-  
-  .file-item { flex-direction: column; align-items: flex-start; gap: 15px; }
-  .file-actions { opacity: 1; } /* Always show on mobile */
-  
-  .session-info-bar { flex-direction: column; gap: 10px; }
+}
+
+.status-actions .btn {
+  text-decoration: none; /* Ensure links styled as buttons look right */
+  padding-top: 14px;
+  padding-bottom: 14px;
+  font-size: 1rem;
+}
+
+/* File List Improvements */
+.file-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px; /* Adds space BETWEEN file items */
+}
+
+.file-item .file-info {
+  /* (Your existing .file-info styles work well) */
+  gap: 16px;
+}
+
+.file-info .file-name {
+  font-weight: 600;
+  color: var(--text-light);
+  display: block; /* Ensures it takes its own line */
+  line-height: 1.4;
+}
+.file-info .file-size {
+  font-size: 0.875rem;
+  color: var(--text-muted);
 }

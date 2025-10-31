@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const TranscriptView = () => {
+const TranscriptView = ({ metricsOnly = false }) => {
   const { submissionId } = useParams();
   const navigate = useNavigate();
   
@@ -143,7 +143,7 @@ const TranscriptView = () => {
         <button onClick={() => navigate(`/status/${submissionId}`)} className="btn btn-secondary">
           <ArrowLeft size={16} /> Back to Status
         </button>
-        <h1>Presentation Transcript</h1>
+        <h1>{metricsOnly ? 'Speech Metrics' : 'Presentation Transcript'}</h1>
         <div className="action-buttons">
           <button onClick={copyToClipboard} className="btn btn-secondary">
             {copiedText ? <Check size={16} /> : <Copy size={16} />}
@@ -164,14 +164,16 @@ const TranscriptView = () => {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <h2>Transcript</h2>
+      {!metricsOnly && (
+        <div className="card">
+          <div className="card-header">
+            <h2>Transcript</h2>
+          </div>
+          <div className="transcript-text">
+            {transcript.full_text}
+          </div>
         </div>
-        <div className="transcript-text">
-          {transcript.full_text}
-        </div>
-      </div>
+      )}
 
       <div className="card">
         <div className="card-header">
