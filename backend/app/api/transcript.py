@@ -341,7 +341,9 @@ async def analyze_speech(submission_id: str):
                 "speech_rate": metrics.get("speech_rate", 0),
                 "articulation_rate": metrics.get("articulation_rate", 0),
                 "total_pause_time": metrics.get("total_pause_time", 0),
-                "pause_count": metrics.get("pause_count", 0)
+                "pause_count": metrics.get("pause_count", 0),
+                "continuity_difference_pct": metrics.get("continuity_difference_pct", 0),
+                "continuity_interpretation": metrics.get("continuity_interpretation", "")
             }
         }
         
@@ -405,6 +407,8 @@ async def get_speech_metrics(submission_id: str):
             "total_pause_time": metrics.get("total_pause_time", 0),
             "pause_count": metrics.get("pause_count", 0),
             "pause_durations": metrics.get("pause_durations", {}),
+            "continuity_difference_pct": metrics.get("continuity_difference_pct", 0),
+            "continuity_interpretation": metrics.get("continuity_interpretation", ""),
             "created_at": metrics["created_at"]
         }
         
