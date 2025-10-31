@@ -12,8 +12,9 @@ class PauseDetectionService:
     
     # Classification thresholds for pause types
     SHORT_PAUSE_MAX = 0.5    # < 0.5s = short pause
-    MEDIUM_PAUSE_MAX = 2.0   # 0.5-2.0s = medium pause
-    # > 2.0s = long pause
+    MEDIUM_PAUSE_MAX = 1.0   # 0.5-1.0s = medium pause (research-backed)
+    EXTREME_PAUSE_MIN = 2.0  # >= 2.0s = extreme pause (rare in fluent adults)
+    # > 1.0s = long pause; >= 2.0s = extreme pause
     
     def __init__(self):
         """Initialize the pause detection service"""
@@ -97,8 +98,10 @@ class PauseDetectionService:
                 pause['type'] = 'short'
             elif duration < self.MEDIUM_PAUSE_MAX:
                 pause['type'] = 'medium'
-            else:
+            elif duration < self.EXTREME_PAUSE_MIN:
                 pause['type'] = 'long'
+            else:
+                pause['type'] = 'extreme'
         
         return pauses
     
@@ -137,6 +140,7 @@ class PauseDetectionService:
         short_pauses = sum(1 for p in pauses if p['type'] == 'short')
         medium_pauses = sum(1 for p in pauses if p['type'] == 'medium')
         long_pauses = sum(1 for p in pauses if p['type'] == 'long')
+        extreme_pauses = sum(1 for p in pauses if p['type'] == 'extreme')
         
         return {
             'total_pause_time': round(total_pause_time, 2),
@@ -148,7 +152,8 @@ class PauseDetectionService:
             'pause_percentage': round(pause_percentage, 2),
             'short_pause_count': short_pauses,
             'medium_pause_count': medium_pauses,
-            'long_pause_count': long_pauses
+            'long_pause_count': long_pauses,
+            'extreme_pause_count': extreme_pauses
         }
     
     def _empty_result(self, audio_duration: float) -> Dict[str, Any]:
@@ -203,6 +208,10 @@ class PauseDetectionService:
         long_pause_count = summary.get('long_pause_count', 0)
         if long_pause_count > 0:
             insights.append(f"{long_pause_count} long pause(s) detected. Work on smooth transitions.")
+        
+        extreme_pause_count = summary.get('extreme_pause_count', 0)
+        if extreme_pause_count > 0:
+            insights.append(f"{extreme_pause_count} extreme pause(s) (>2s) detected. This may indicate significant planning difficulty.")
         
         return " ".join(insights)
 

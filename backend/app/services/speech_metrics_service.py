@@ -84,6 +84,11 @@ class SpeechMetricsService:
             print(f"   ✓ Speech rate: {speech_rate} WPM ({rate_analysis['speech_rate_category']})")
             print(f"   ✓ Articulation rate: {articulation_rate} WPM ({rate_analysis['articulation_rate_category']})")
             
+            # Step 4: Continuity differential D = (AR - SR)/AR
+            continuity = speech_rate_service.compare_rates(speech_rate, articulation_rate)
+            continuity_difference_pct = continuity['difference_percentage']
+            continuity_interpretation = continuity['interpretation']
+
             # Prepare pause_durations JSONB data
             pause_durations_json = {
                 'threshold': 0.2,
@@ -91,7 +96,7 @@ class SpeechMetricsService:
                 'summary': pause_summary
             }
             
-            # Store all metrics in database
+            # Store all metrics in database (store continuity D in articulation_score)
             query = """
             INSERT INTO speech_metrics (
                 transcript_id,
@@ -104,8 +109,9 @@ class SpeechMetricsService:
                 total_pause_time,
                 pause_count,
                 pause_durations,
+                articulation_score,
                 created_at
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
             RETURNING metrics_id
             """
             
@@ -121,7 +127,8 @@ class SpeechMetricsService:
                     articulation_rate,
                     pause_summary['total_pause_time'],
                     pause_summary['pause_count'],
-                    json.dumps(pause_durations_json)
+                    json.dumps(pause_durations_json),
+                    continuity_difference_pct
                 ),
                 fetch_one=True
             )
@@ -140,7 +147,9 @@ class SpeechMetricsService:
                 'articulation_rate': round(articulation_rate, 2),
                 'total_pause_time': pause_summary['total_pause_time'],
                 'pause_count': pause_summary['pause_count'],
-                'pause_summary': pause_summary
+                'pause_summary': pause_summary,
+                'continuity_difference_pct': round(continuity_difference_pct, 2),
+                'continuity_interpretation': continuity_interpretation
             }
             
         except Exception as e:
