@@ -384,6 +384,7 @@ async def get_speech_metrics(submission_id: str):
         
         # Get speech metrics
         from app.services.speech_metrics_service import speech_metrics_service
+        from app.services.speech_rate_service import speech_rate_service
         metrics = speech_metrics_service.get_speech_metrics(transcript_id)
         
         if not metrics:
@@ -394,6 +395,87 @@ async def get_speech_metrics(submission_id: str):
                 "message": "Speech metrics not yet analyzed. Click 'Analyze Speech' button."
             }
         
+        # Calculate categories for better UI display
+        speech_rate = metrics.get("speech_rate", 0)
+        articulation_rate = metrics.get("articulation_rate", 0)
+        fluency_score = metrics.get("fluency_score", 0)
+        
+        # Get rate categories
+        speech_rate_category = speech_rate_service.categorize_rate(speech_rate)
+        articulation_rate_category = speech_rate_service.categorize_rate(articulation_rate)
+        speech_rate_label = speech_rate_service.get_rate_label(speech_rate_category)
+        articulation_rate_label = speech_rate_service.get_rate_label(articulation_rate_category)
+        speech_rate_emoji = speech_rate_service.get_rate_emoji(speech_rate_category)
+        articulation_rate_emoji = speech_rate_service.get_rate_emoji(articulation_rate_category)
+        
+        # Get fluency category
+        if fluency_score >= 90:
+            fluency_category = "excellent"
+            fluency_label = "Excellent"
+        elif fluency_score >= 75:
+            fluency_category = "good"
+            fluency_label = "Good"
+        elif fluency_score >= 60:
+            fluency_category = "fair"
+            fluency_label = "Fair"
+        elif fluency_score >= 40:
+            fluency_category = "poor"
+            fluency_label = "Poor"
+        else:
+            fluency_category = "needs_improvement"
+            fluency_label = "Needs Improvement"
+        
+        # Get pause categories
+        pause_percentage = metrics.get("pause_durations", {}).get("summary", {}).get("pause_percentage", 0) if isinstance(metrics.get("pause_durations"), dict) else 0
+        pause_count = metrics.get("pause_count", 0)
+        
+        # Categorize pause percentage
+        # Too few pauses (< 2%) = speaking too fast without breaks
+        # Good range (2-10%) = natural rhythm with appropriate breaks
+        # Moderate (10-20%) = some excessive pausing
+        # Too many (> 20%) = excessive pauses affecting flow
+        if pause_percentage < 2:
+            pause_percentage_category = "too_few"
+            pause_percentage_label = "Too Few Pauses"
+            pause_percentage_emoji = "⚡"
+        elif pause_percentage < 10:
+            pause_percentage_category = "good"
+            pause_percentage_label = "Good Control"
+            pause_percentage_emoji = "✅"
+        elif pause_percentage < 20:
+            pause_percentage_category = "moderate"
+            pause_percentage_label = "Moderate Pauses"
+            pause_percentage_emoji = "⚠️"
+        else:
+            pause_percentage_category = "high"
+            pause_percentage_label = "Too Many Pauses"
+            pause_percentage_emoji = "🔴"
+        
+        # Categorize pause count (based on typical speech patterns)
+        # Too few (< 2/min) = speaking too fast, no natural breaks
+        # Normal (2-5/min) = natural rhythm with good pacing
+        # Moderate (5-10/min) = somewhat frequent but acceptable
+        # Frequent (> 10/min) = too many pauses disrupting flow
+        audio_duration = transcript.get("asr_metadata", {}).get("audio_duration", 60) if isinstance(transcript.get("asr_metadata"), dict) else 60
+        pauses_per_minute = (pause_count / audio_duration * 60) if audio_duration > 0 else 0
+        
+        if pauses_per_minute < 2:
+            pause_count_category = "too_few"
+            pause_count_label = "Too Few"
+            pause_count_emoji = "⚡"
+        elif pauses_per_minute < 5:
+            pause_count_category = "normal"
+            pause_count_label = "Normal"
+            pause_count_emoji = "✅"
+        elif pauses_per_minute < 10:
+            pause_count_category = "moderate"
+            pause_count_label = "Moderate"
+            pause_count_emoji = "⚠️"
+        else:
+            pause_count_category = "high"
+            pause_count_label = "Too Frequent"
+            pause_count_emoji = "🔴"
+        
         return {
             "submission_id": submission_id,
             "transcript_id": transcript_id,
@@ -402,10 +484,26 @@ async def get_speech_metrics(submission_id: str):
             "total_word_count": metrics["total_word_count"],
             "filler_word_percentage": metrics["filler_word_percentage"],
             "fluency_score": metrics["fluency_score"],
-            "speech_rate": metrics.get("speech_rate", 0),
-            "articulation_rate": metrics.get("articulation_rate", 0),
+            "fluency_category": fluency_category,
+            "fluency_label": fluency_label,
+            "speech_rate": speech_rate,
+            "speech_rate_category": speech_rate_category,
+            "speech_rate_label": speech_rate_label,
+            "speech_rate_emoji": speech_rate_emoji,
+            "articulation_rate": articulation_rate,
+            "articulation_rate_category": articulation_rate_category,
+            "articulation_rate_label": articulation_rate_label,
+            "articulation_rate_emoji": articulation_rate_emoji,
             "total_pause_time": metrics.get("total_pause_time", 0),
             "pause_count": metrics.get("pause_count", 0),
+            "pause_count_category": pause_count_category,
+            "pause_count_label": pause_count_label,
+            "pause_count_emoji": pause_count_emoji,
+            "pause_percentage": pause_percentage,
+            "pause_percentage_category": pause_percentage_category,
+            "pause_percentage_label": pause_percentage_label,
+            "pause_percentage_emoji": pause_percentage_emoji,
+            "pauses_per_minute": round(pauses_per_minute, 1),
             "pause_durations": metrics.get("pause_durations", {}),
             "continuity_difference_pct": metrics.get("continuity_difference_pct", 0),
             "continuity_interpretation": metrics.get("continuity_interpretation", ""),
@@ -433,13 +531,13 @@ async def get_asr_status():
     try:
         return {
             "asr_ready": asr_service.is_ready(),
-            "model_name": asr_service.model_name,
-            "device": asr_service.device,
-            "asr_type": "nemo" if ASR_AVAILABLE else "simple",
+            "model_name": getattr(asr_service, 'model_name', 'nvidia/parakeet-tdt-0.6b-v3'),
+            "device": getattr(asr_service, 'device', 'unknown'),
+            "asr_type": "simple",
             "status": "ready" if asr_service.is_ready() else "not_ready",
             "features": {
-                "word_timestamps": ASR_AVAILABLE,
-                "segment_timestamps": ASR_AVAILABLE,
+                "word_timestamps": True,
+                "segment_timestamps": True,
                 "basic_transcription": True
             }
         }

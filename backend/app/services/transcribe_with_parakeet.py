@@ -66,6 +66,9 @@ def transcribe_audio(audio_path: str):
         # Set HuggingFace cache location (D: drive)
         os.environ['HF_HOME'] = hf_cache
         os.environ['HUGGINGFACE_HUB_CACHE'] = hf_cache
+        # Enable offline mode to use cached models without network access
+        os.environ['TRANSFORMERS_OFFLINE'] = '1'
+        os.environ['HF_HUB_OFFLINE'] = '1'
         
         # Force temp/download directory to D: drive (prevents C: drive usage)
         os.environ['TMPDIR'] = temp_dir
@@ -119,13 +122,37 @@ def transcribe_audio(audio_path: str):
         
         print(f"Loading model: {model_name}", file=sys.stderr)
         
+        # Try to load from local cache first to avoid network requests
+        model_cache_path = os.path.join(hf_cache, 'models--nvidia--parakeet-tdt-0.6b-v3', 'snapshots')
+        local_model_path = None
+        
+        if os.path.exists(model_cache_path):
+            # Find the model file in snapshots directory
+            for root, dirs, files in os.walk(model_cache_path):
+                for file in files:
+                    if file.endswith('.nemo'):
+                        local_model_path = os.path.join(root, file)
+                        print(f"Found cached model at: {local_model_path}", file=sys.stderr)
+                        break
+                if local_model_path:
+                    break
+        
         # Temporarily replace stdout with stderr to prevent NeMo logs from polluting JSON output
         original_stdout = sys.stdout
         sys.stdout = sys.stderr
         
         try:
-            model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_name)
-            model.to(device)
+            # Load model from local path if found, otherwise use from_pretrained
+            if local_model_path and os.path.exists(local_model_path):
+                print(f"Loading model from local cache: {local_model_path}", file=sys.stderr)
+                # Use restore_from to load from local .nemo file
+                model = nemo_asr.models.ASRModel.restore_from(restore_path=local_model_path)
+                model.to(device)
+            else:
+                print("Loading model from HuggingFace (offline mode)...", file=sys.stderr)
+                # Use from_pretrained with offline mode - it should use cached version
+                model = nemo_asr.models.ASRModel.from_pretrained(model_name=model_name)
+                model.to(device)
         finally:
             # Restore original stdout
             sys.stdout = original_stdout

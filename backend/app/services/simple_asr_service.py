@@ -71,65 +71,13 @@ class SimpleASRService:
         if not os.path.exists(audio_path):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
         
-        # ALWAYS TRY PARAKEET FIRST (via subprocess)
+        # ALWAYS TRY PARAKEET FIRST (via model server, falls back to subprocess)
         try:
             print(f"🎤 Attempting Parakeet transcription: {os.path.basename(audio_path)}")
-            print(f"   Python: {self.python_exe}")
-            print(f"   Script: {self.script_path}")
-            print(f"   Audio: {audio_path}")
             
-            # Verify paths exist
-            if not os.path.exists(self.python_exe):
-                raise Exception(f"Python executable not found: {self.python_exe}")
-            if not os.path.exists(self.script_path):
-                raise Exception(f"Transcription script not found: {self.script_path}")
-            
-            # Call Parakeet script using venv_asr Python
-            cmd = [self.python_exe, self.script_path, audio_path]
-            print(f"   Command: {' '.join(cmd)}")
-            
-            # Prepare environment (inherit current env with cache paths)
-            env = os.environ.copy()
-            
-            # Run subprocess (15 minutes timeout for long audio and model download)
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=900,
-                env=env
-            )
-            
-            # Check for errors
-            if result.returncode != 0:
-                error_msg = f"Parakeet script failed with return code {result.returncode}"
-                if result.stderr:
-                    error_msg += f"\nStderr:\n{result.stderr}"
-                if result.stdout:
-                    error_msg += f"\nStdout:\n{result.stdout}"
-                raise Exception(error_msg)
-            
-            # Parse JSON output from Parakeet (filter out NeMo log lines)
-            try:
-                # NeMo may output logs to stdout, so we need to find the JSON line
-                # The JSON output should be the last non-empty line or a line starting with '{'
-                stdout_lines = result.stdout.strip().split('\n')
-                
-                # Try to find JSON in the output (starts with '{' and ends with '}')
-                json_str = None
-                for line in reversed(stdout_lines):
-                    line = line.strip()
-                    if line.startswith('{') and line.endswith('}'):
-                        json_str = line
-                        break
-                
-                if json_str is None:
-                    # If no clear JSON line, try to parse the entire stdout
-                    json_str = result.stdout
-                
-                data = json.loads(json_str)
-            except json.JSONDecodeError as e:
-                raise Exception(f"Failed to parse Parakeet output: {e}\nOutput: {result.stdout[:500]}")
+            # Use Parakeet client (tries model server first, falls back to subprocess)
+            from app.services.parakeet_client import parakeet_client
+            data = parakeet_client.transcribe(audio_path)
             
             if not data.get('success'):
                 error_msg = data.get('error', 'Unknown error')
