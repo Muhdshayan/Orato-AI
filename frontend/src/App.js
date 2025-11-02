@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import VideoUpload from './components/VideoUpload';
 import VideoStatus from './components/VideoStatus';
 import TranscriptView from './components/TranscriptView';
+import MetricsDashboard from './components/MetricsDashboard';
 import Header from './components/Header';
 import AuthForm from './components/AuthForm';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -85,7 +86,7 @@ function AppContent() {
               path="/metrics/:submissionId" 
               element={
                 <ProtectedRoute>
-                  <TranscriptView metricsOnly />
+                  <MetricsDashboard />
                 </ProtectedRoute>
               } 
             />
