@@ -70,3 +70,7 @@ dist/
 tmp/
 temp/
 *.tmp
+
+
+venv_cv
+debug_frames

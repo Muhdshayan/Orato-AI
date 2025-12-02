@@ -1,0 +1,14 @@
+# Requirements for Visual Analysis Module (Computer Vision)
+# Install with: pip install -r cv_requirements.txt
+# NOTE: MediaPipe requires Python 3.8-3.11 (not 3.12+)
+
+# Core CV and pose estimation
+opencv-python>=4.8.0
+mediapipe>=0.10.0,<0.11.0
+
+# Numerical computing
+numpy>=1.24.0,<2.0.0
+scipy>=1.10.0
+
+# Optional but recommended
+# matplotlib>=3.7.0  # For visualization (uncomment if needed)
