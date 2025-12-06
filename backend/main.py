@@ -72,7 +72,7 @@ async def startup_event():
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         venv_path = os.path.join(project_root, 'venv_asr')
         python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
-        server_script = os.path.join(project_root, 'backend', 'app', 'services', 'parakeet_model_server.py')
+        server_script = '/workspace/Orato-AI/scripts/parakeet_model_server.py'
         
         if os.path.exists(python_exe) and os.path.exists(server_script):
             print("🚀 Starting Parakeet model server...")

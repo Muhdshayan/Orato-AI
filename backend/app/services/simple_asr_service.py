@@ -3,6 +3,7 @@ import json
 import tempfile
 import traceback
 import subprocess
+import sys
 from typing import Dict, List, Any, Optional
 from app.core.database import execute_query
 from app.core.config import settings
@@ -40,7 +41,14 @@ class SimpleASRService:
         venv_path = os.path.join(project_root, 'venv_asr')
         services_dir = os.path.dirname(__file__)
         
-        self.python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
+        # --- CHANGE STARTS HERE ---
+        # Dynamic path selection for Windows vs Linux
+        if sys.platform == 'win32':
+            self.python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
+        else:
+            self.python_exe = os.path.join(venv_path, 'bin', 'python')
+        # --- CHANGE ENDS HERE ---
+
         self.script_path = os.path.join(services_dir, 'transcribe_with_parakeet.py')
         
         # Load Google Speech Recognition as fallback

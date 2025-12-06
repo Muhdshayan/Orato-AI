@@ -111,6 +111,12 @@ export const videoAPI = {
     return response.data;
   },
 
+  // [NEW] Get CV Metrics
+  getCVMetrics: async (submissionId) => {
+    const response = await api.get(`/api/v1/videos/${submissionId}/cv-metrics`);
+    return response.data;
+  },
+
   // Health check
   healthCheck: async () => {
     const response = await api.get('/health');

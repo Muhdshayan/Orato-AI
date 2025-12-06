@@ -32,7 +32,15 @@ class ParakeetClient:
         services_dir = os.path.dirname(__file__)
         self.project_root = project_root
         venv_path = os.path.join(project_root, 'venv_asr')
-        self.python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
+
+        # --- CHANGE STARTS HERE ---
+        # Dynamic path selection for Windows vs Linux/Mac
+        if sys.platform == 'win32':
+            self.python_exe = os.path.join(venv_path, 'Scripts', 'python.exe')
+        else:
+            self.python_exe = os.path.join(venv_path, 'bin', 'python')
+        # --- CHANGE ENDS HERE ---
+
         self.script_path = os.path.join(services_dir, 'transcribe_with_parakeet.py')
         
         # Cache for server availability check

@@ -67,8 +67,8 @@ def transcribe_audio(audio_path: str):
         os.environ['HF_HOME'] = hf_cache
         os.environ['HUGGINGFACE_HUB_CACHE'] = hf_cache
         # Enable offline mode to use cached models without network access
-        os.environ['TRANSFORMERS_OFFLINE'] = '1'
-        os.environ['HF_HUB_OFFLINE'] = '1'
+        os.environ['TRANSFORMERS_OFFLINE'] = '0'
+        os.environ['HF_HUB_OFFLINE'] = '0'
         
         # Force temp/download directory to D: drive (prevents C: drive usage)
         os.environ['TMPDIR'] = temp_dir

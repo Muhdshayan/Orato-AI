@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks, Depends
 from app.models.video import VideoUploadRequest, VideoUploadResponse, VideoStatusResponse
 from app.services.video_service import VideoService
+# [NEW] Import for CV metrics
+from app.services.visual_analysis_service import visual_analysis_service
 from app.core.database import execute_query
 from app.core.config import settings
 from app.api.users import get_current_user
@@ -175,3 +177,26 @@ async def get_video_files(submission_id: str):
             status_code=500,
             detail=f"Failed to get files: {str(e)}"
         )
+
+# [NEW] Endpoint to retrieve CV Analysis Results
+@router.get("/{submission_id}/cv-metrics")
+async def get_cv_metrics(submission_id: str):
+    """
+    Fetch the Visual Analysis (Body Language) results.
+    """
+    try:
+        # Fetch from the service helper
+        result = visual_analysis_service.get_analysis_result(submission_id)
+        
+        if not result:
+            # Check if job exists to determine if it's processing or just missing
+            status_check = await video_service.get_status(submission_id)
+            if status_check.get("status") in ["uploaded", "processing"]:
+                 return {"status": "processing", "message": "Visual analysis is still running"}
+            return {"status": "not_found", "message": "No visual analysis found for this video"}
+            
+        return result
+        
+    except Exception as e:
+        print(f"❌ API Error fetching CV metrics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch CV metrics: {str(e)}")

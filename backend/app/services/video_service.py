@@ -1,12 +1,12 @@
 import os
 import uuid
 import tempfile
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
 from app.core.database import execute_query
 from app.services.minio_service import MinIOService
 from app.core.config import settings
 
-# Video processing functions (copied from python_modules for self-contained backend)
+# Video processing functions
 from moviepy.editor import VideoFileClip
 import speech_recognition as sr
 from langdetect import detect, LangDetectException
@@ -54,7 +54,6 @@ class VideoService:
             print(f"✅ Generated presigned URLs successfully")
         except Exception as e:
             print(f"⚠️ Failed to generate presigned URLs: {e}")
-            # Return without file URLs if presigned URL generation fails
             files = None
         
         response = {
@@ -72,16 +71,40 @@ class VideoService:
     
     def process_video_background(self, video_path: str, submission_id: str, topic: str, user_id: str):
         """
-        Background task to process video without blocking the API response.
-        Updates the database entry that was already created.
+        Background task to process video AND trigger analysis.
         """
+        created_temp_dir = None
+        
         try:
             print(f"🎬 Background processing started for submission {submission_id}")
             
-            # Call the existing video processing logic
-            result = self._process_video_file(video_path, submission_id, topic, user_id)
+            # 1. SPLIT VIDEO
+            # Pass cleanup=False so we can use the files for the analysis step next
+            _, audio_path, derived_video_path, created_temp_dir = self._process_video_file(
+                video_path, submission_id, topic, user_id, cleanup=False
+            )
             
-            print(f"✅ Background processing completed for submission {submission_id}")
+            print(f"✅ Video separation completed. Starting Analysis...")
+
+            # 2. TRIGGER PARALLEL ANALYSIS
+            # We import here to avoid circular dependencies
+            import asyncio
+            from app.services.analysis_orchestrator import analysis_orchestrator
+            
+            # Create a new event loop for the async orchestrator since we are in a sync function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            loop.run_until_complete(
+                analysis_orchestrator.process_submission(
+                    submission_id, 
+                    audio_path, 
+                    derived_video_path
+                )
+            )
+            loop.close()
+            
+            print(f"✅ Background processing and analysis chain completed for {submission_id}")
             
         except Exception as e:
             print(f"❌ Background processing failed for submission {submission_id}: {e}")
@@ -99,14 +122,24 @@ class VideoService:
                 print(f"❌ Failed to update error status: {update_error}")
         
         finally:
-            # Cleanup temp file
+            # 3. GLOBAL CLEANUP
+            
+            # Cleanup original upload temp file
             try:
                 if os.path.exists(video_path):
                     os.unlink(video_path)
-                    print(f"🧹 Cleaned up temp file: {video_path}")
-            except Exception as cleanup_error:
-                print(f"⚠️ Failed to cleanup temp file: {cleanup_error}")
-    
+                    print(f"🧹 Cleaned up original upload: {video_path}")
+            except Exception as e:
+                print(f"⚠️ Failed to clean up original upload: {e}")
+
+            # Cleanup derived files (temp_dir from _process_video_file)
+            if created_temp_dir and os.path.exists(created_temp_dir):
+                try:
+                    import shutil
+                    shutil.rmtree(created_temp_dir, ignore_errors=True)
+                    print(f"🧹 Cleaned up analysis temp directory: {created_temp_dir}")
+                except Exception as e:
+                    print(f"⚠️ Failed to cleanup analysis temp dir: {e}")
     
     def _update_status(self, submission_id: str, status: str, error_message: str = None):
         """Update processing status in database"""
@@ -177,13 +210,13 @@ class VideoService:
             "completed_at": result["uploaded_at"] if status == "completed" else None
         }
     
-    def _process_video_file(self, video_path: str, submission_id: str, declared_topic: str, user_id: str) -> str:
-        """Process video file: split into audio/video and upload to MinIO"""
+    def _process_video_file(self, video_path: str, submission_id: str, declared_topic: str, user_id: str, cleanup: bool = True) -> Tuple[str, str, str, str]:
+        """
+        Process video file: split into audio/video and upload to MinIO.
+        Returns: (submission_id, audio_path, video_path, temp_dir)
+        """
         
         print(f"🔍 Processing video for submission: {submission_id}")
-        print(f"🔍 Processing video for user_id: {user_id}")
-        print(f"🔍 Video path: {video_path}")
-        print(f"🔍 Video exists: {os.path.exists(video_path)}")
         
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"File not found: {video_path}")
@@ -206,7 +239,6 @@ class VideoService:
         output_video_path = os.path.join(temp_dir, f"{base_name}_video_only.mp4")
         output_audio_path = os.path.join(temp_dir, f"{base_name}_audio_only.wav")
 
-        # Ensure cleanup happens no matter what
         clip = None
         try:
             # 1) Load video and validate duration
@@ -217,7 +249,7 @@ class VideoService:
                     f"Video duration ({clip.duration:.2f}s) exceeds limit of {self.max_duration_seconds}s"
                 )
 
-            # 2) Language quick check via SpeechRecognition + langdetect on a short subclip
+            # 2) Language quick check
             sample_audio_path = os.path.join(temp_dir, f"{base_name}_langcheck.wav")
             audio_for_check = clip.audio
             if audio_for_check is None:
@@ -235,9 +267,9 @@ class VideoService:
                 transcribed_text = recognizer.recognize_google(audio_data)
                 detected_lang = detect(transcribed_text)
                 if detected_lang != self.supported_language:
-                    raise ValueError(f"Detected language '{detected_lang}' != '{self.supported_language}'")
-            except (sr.UnknownValueError, sr.RequestError, LangDetectException):
-                # proceed but warn
+                    # Just warn for now
+                    print(f"⚠️ Warning: Detected language '{detected_lang}' != '{self.supported_language}'")
+            except Exception as e:
                 pass
             finally:
                 if os.path.exists(sample_audio_path):
@@ -245,50 +277,30 @@ class VideoService:
 
             # 3) Split into video (no audio) and audio-only wav
             print(f"🔍 Writing video file: {output_video_path}")
-            clip.write_videofile(
-                output_video_path, 
-                audio=False, 
-                verbose=False, 
-                logger=None
-            )
-            print(f"✅ Video file written successfully")
+            clip.write_videofile(output_video_path, audio=False, verbose=False, logger=None)
             
             print(f"🔍 Writing audio file: {output_audio_path}")
-            clip.audio.write_audiofile(
-                output_audio_path, 
-                verbose=False, 
-                logger=None
-            )
-            print(f"✅ Audio file written successfully")
+            clip.audio.write_audiofile(output_audio_path, verbose=False, logger=None)
 
-            # Close clip before proceeding
             if clip:
                 clip.close()
+                clip = None
 
-            # 4) Use provided submission ID for MinIO object names
+            # 4) Upload to MinIO
             original_obj = f"uploads/{submission_id}.mp4"
             video_only_obj = f"derived/{submission_id}_video_only.mp4"
             audio_only_obj = f"derived/{submission_id}_audio_only.wav"
 
-            print(f"🔍 Uploading original video to MinIO: {original_obj}")
-            # Upload original video
+            print(f"🔍 Uploading files to MinIO...")
             self.minio.upload_file(video_path, original_obj, content_type="video/mp4")
-            print(f"✅ Original video uploaded to MinIO")
-            
-            print(f"🔍 Uploading derived video to MinIO: {video_only_obj}")
-            # Upload derived files
             self.minio.upload_file(output_video_path, video_only_obj, content_type="video/mp4")
-            print(f"✅ Derived video uploaded to MinIO")
-            
-            print(f"🔍 Uploading derived audio to MinIO: {audio_only_obj}")
             self.minio.upload_file(output_audio_path, audio_only_obj, content_type="audio/wav")
-            print(f"✅ Derived audio uploaded to MinIO")
+            print(f"✅ MinIO upload complete")
 
-            # 5) Update database entry with MinIO details
-            print(f"🔍 Updating database entry for submission: {submission_id}")
+            # 5) Update database
+            print(f"🔍 Updating database for {submission_id}")
             conn = self._get_pg_conn()
             try:
-                # Update the existing database entry with file details
                 with conn.cursor() as cur:
                     cur.execute(
                         """
@@ -300,49 +312,35 @@ class VideoService:
                          settings.MINIO_MEDIA_BUCKET, original_obj, submission_id)
                     )
                     conn.commit()
-                print(f"✅ Updated submission: {submission_id}")
-                print(f"🔍 Database update successful, video separation complete!")
                 
-                db_submission_id = submission_id  # Use the same ID
+                # Update job statuses
+                self._update_status(submission_id, "completed")
                 
-                # Create processing job
-                job_id = self._create_processing_job(db_submission_id, "PROCESSING")
+                # We return the paths so the Orchestrator can use them immediately
+                return submission_id, output_audio_path, output_video_path, temp_dir
                 
-                # Update status to completed - video separation is done
-                self._update_status(db_submission_id, "completed")
-                self._update_processing_job(db_submission_id, "DONE")
-                print(f"✅ Video separation completed successfully: {db_submission_id}")
-                
-                # NOTE: Transcription is now manual via the "Transcribe Audio" button
-                # It will be triggered by POST /api/v1/transcripts/{submission_id}/generate
-                
-                return db_submission_id  # Return the database submission_id for file URLs
             except Exception as e:
-                # Update status to failed if something goes wrong
-                if 'db_submission_id' in locals():
-                    self._update_status(db_submission_id, "failed")
-                    self._update_processing_job(db_submission_id, "FAILED", str(e))
+                self._update_status(submission_id, "failed")
+                self._update_processing_job(submission_id, "FAILED", str(e))
                 raise
             finally:
                 conn.close()
                 
         except Exception as e:
-            # If any error occurs, close clip if needed
             if clip:
-                try:
-                    clip.close()
-                except:
-                    pass
+                try: clip.close() 
+                except: pass
             raise
         finally:
-            # ALWAYS cleanup temporary directory, even if errors occurred
-            try:
-                import shutil
-                if os.path.exists(temp_dir):
-                    shutil.rmtree(temp_dir, ignore_errors=True)
-                    print(f"🧹 Cleaned up temp directory: {temp_dir}")
-            except Exception as cleanup_error:
-                print(f"⚠️ Failed to cleanup temp directory: {cleanup_error}")
+            # Only cleanup if requested
+            if cleanup:
+                try:
+                    import shutil
+                    if os.path.exists(temp_dir):
+                        shutil.rmtree(temp_dir, ignore_errors=True)
+                        print(f"🧹 Cleaned up temp directory: {temp_dir}")
+                except Exception as cleanup_error:
+                    print(f"⚠️ Failed to cleanup temp directory: {cleanup_error}")
     
     def _get_pg_conn(self):
         """Get PostgreSQL connection"""
@@ -354,22 +352,3 @@ class VideoService:
             password=settings.PGPASSWORD,
             database=settings.PGDATABASE
         )
-    
-    def _insert_video_submission(self, conn, submission_id: str, user_id: str, filename: str, filesize: int, 
-                                declared_topic: str, minio_bucket: str, minio_object_name: str):
-        """Insert video submission record into database with specified submission_id"""
-        import psycopg2
-        from psycopg2.extras import RealDictCursor
-        
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute(
-                """
-                INSERT INTO video_submissions (submission_id, user_id, filename, filesize, declared_topic, minio_object_name, minio_bucket)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                RETURNING submission_id
-                """,
-                (submission_id, user_id, filename, filesize, declared_topic, minio_object_name, minio_bucket),
-            )
-            row = cur.fetchone()
-            conn.commit()
-            return row["submission_id"]
