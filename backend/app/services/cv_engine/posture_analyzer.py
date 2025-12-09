@@ -13,34 +13,37 @@ from . import geometry_utils
 logger = logging.getLogger(__name__)
 
 
-def calculate_craniocervical_angle(ear: Dict, c7: Dict) -> Optional[float]:
+def calculate_craniocervical_angle(ear: Dict, c7: Dict, shoulder_mid: Optional[Dict] = None) -> Optional[float]:
     """
     Calculate craniocervical angle (CCA) - angle between ear-C7 line and horizontal.
     
-    Research: Normal = 48°-55°, Slouching < 42°
+    Research: Normal = 145°-165° (posterior angle) 
+    Uses 2D projection appropriate for front-facing camera presentations.
     
     Args:
         ear: Ear landmark {x, y, z, visibility}
-        c7: C7 vertebra landmark
+        c7: C7 vertebra landmark {x, y, z, visibility}
+        shoulder_mid: Optional (kept for API compatibility, not used)
         
     Returns:
-        Angle in degrees, or None if visibility too low
+        Posterior angle in degrees (145-165° normal), or None if visibility too low
     """
     if ear['visibility'] < 0.5 or c7['visibility'] < 0.5:
         return None
     
-    # Calculate angle with horizontal
+    
+    # Calculate angle of ear-C7 line with horizontal (2D projection)
     angle = geometry_utils.calculate_angle_2d(
         np.array([c7['x'], c7['y']]),
         np.array([ear['x'], ear['y']])
     )
     
-    # Convert to positive angle (0-90° range)
     angle = abs(angle)
     if angle > 90:
         angle = 180 - angle
     
-    return angle
+    cca = 180 - angle
+    return cca
 
 
 def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[float]:
@@ -61,25 +64,29 @@ def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[floa
         mid_hip['visibility'] < 0.5):
         return None
     
-    # Neck vector (C7 to head)
+    # 3D vector from C7 to head (neck direction)
     neck_vec = np.array([head['x'] - c7['x'], 
-                        head['y'] - c7['y']])
+                        head['y'] - c7['y'],
+                        head['z'] - c7['z']])
     
-    # Torso vector (mid_hip to C7) - represents vertical
-    torso_vec = np.array([c7['x'] - mid_hip['x'],
-                         c7['y'] - mid_hip['y']])
+    # 3D vertical reference vector (upward in image space)
+    vertical = np.array([0, 1, 0])
     
-    # Calculate angle between vectors
-    angle = geometry_utils.calculate_angle(
-        np.array([mid_hip['x'], mid_hip['y'], 0]),
-        np.array([c7['x'], c7['y'], 0]),
-        np.array([head['x'], head['y'], 0])
-    )
+    # Calculate 3D angle between neck and vertical
+    neck_norm = np.linalg.norm(neck_vec)
+    if neck_norm < 1e-6:
+        return None
     
-    # Flexion is deviation from 180° (straight alignment)
-    flexion = abs(180 - angle)
+    cos_angle = np.dot(neck_vec, vertical) / neck_norm
+    cos_angle = np.clip(cos_angle, -1.0, 1.0)
     
-    return flexion
+    angle_rad = np.arccos(cos_angle)
+    angle_deg = np.degrees(angle_rad)
+    
+    # Flexion is deviation from vertical (90° - angle)
+    flexion = 90 - angle_deg
+    
+    return abs(flexion)
 
 
 def analyze_slouch_duration(pose_data: List[Dict]) -> Dict:
@@ -243,13 +250,26 @@ def analyze_posture(pose_data: List[Dict], fps: float,
         landmarks = frame.get('landmarks')
         
         if anat and landmarks and 'c7' in anat:
-            # Use average of left and right ear
-            if 'left_ear' in landmarks and 'right_ear' in landmarks:
-                left_cca = calculate_craniocervical_angle(landmarks['left_ear'], anat['c7'])
-                right_cca = calculate_craniocervical_angle(landmarks['right_ear'], anat['c7'])
+            # Calculate shoulder midpoint for 3D angle
+            if 'left_shoulder' in landmarks and 'right_shoulder' in landmarks:
+                left_shoulder = landmarks['left_shoulder']
+                right_shoulder = landmarks['right_shoulder']
                 
-                if left_cca and right_cca:
-                    cca_angles.append((left_cca + right_cca) / 2)
+                # Create 3D shoulder midpoint
+                shoulder_mid = {
+                    'x': (left_shoulder['x'] + right_shoulder['x']) / 2,
+                    'y': (left_shoulder['y'] + right_shoulder['y']) / 2,
+                    'z': (left_shoulder['z'] + right_shoulder['z']) / 2,
+                    'visibility': min(left_shoulder['visibility'], right_shoulder['visibility'])
+                }
+                
+                # Use average of left and right ear with 3D shoulder midpoint
+                if 'left_ear' in landmarks and 'right_ear' in landmarks:
+                    left_cca = calculate_craniocervical_angle(landmarks['left_ear'], anat['c7'], shoulder_mid)
+                    right_cca = calculate_craniocervical_angle(landmarks['right_ear'], anat['c7'], shoulder_mid)
+                    
+                    if left_cca and right_cca:
+                        cca_angles.append((left_cca + right_cca) / 2)
     
     # Get all metrics
     slouch_metrics = analyze_slouch_duration(pose_data)

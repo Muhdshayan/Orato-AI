@@ -299,7 +299,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI 
           label="Smoothness (NJC)" 
-          value={((data.gestures?.motion_smoothness?.mean_njc || 0) / 1000000).toFixed(1)} 
+          value={((data.gestures?.motion_smoothness?.mean_njc || 0)).toFixed(1)} 
           suffix="M" 
           color="#f472b6" 
           delay={0.45}
@@ -346,29 +346,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       </div>
 
       {/* Row 5: Feedback Section */}
-      <motion.div 
-        className="card"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
-      >
-        <h3 style={{ marginBottom: 24, fontSize: '1.5rem', color: 'var(--text-main)' }}>AI Coach Insights</h3>
-        {data.feedback ? (
-          <div style={{ display: 'grid', gap: 8 }}>
-            {[...(data.feedback.posture || []), ...(data.feedback.engagement || []), ...(data.feedback.expressiveness || [])].map((item, idx) => (
-              <FeedbackItem 
-                key={idx} 
-                index={idx}
-                category={item.metric || 'Observation'} 
-                severity={item.severity} 
-                message={item.remark} 
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted">Analysis engine is compiling insights...</p>
-        )}
-      </motion.div>
+
     </div>
   );
 };

@@ -15,15 +15,13 @@ const TranscriptView = ({ metricsOnly = false }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copiedText, setCopiedText] = useState(false)
-  
-  // Note: speechMetrics state removed if unused in this view, 
-  // or you can keep it if you plan to expand this component.
 
   const fetchTranscript = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       const response = await transcriptAPI.getTranscript(submissionId)
+      console.log("Transcript API Response:", response) // Debug log
       setTranscript(response)
     } catch (err) {
       setError(err.message || "Failed to fetch transcript")
@@ -62,9 +60,24 @@ const TranscriptView = ({ metricsOnly = false }) => {
   }
 
   const formatTime = (seconds) => {
+    if (!seconds) return "0:00"
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, "0")}`
+  }
+
+  // Helper to safely get duration (handles nested metadata or flat structure)
+  const getDuration = () => {
+    if (!transcript) return 0
+    return transcript.audio_duration || transcript.asr_metadata?.audio_duration || 0
+  }
+
+  // Helper to safely get confidence
+  const getConfidence = () => {
+    if (!transcript) return "N/A"
+    const conf = transcript.asr_confidence
+    if (typeof conf === 'number') return `${(conf * 100).toFixed(1)}%`
+    return "N/A"
   }
 
   if (loading) {
@@ -137,21 +150,27 @@ const TranscriptView = ({ metricsOnly = false }) => {
           <Clock size={24} color="var(--primary)" />
           <div>
             <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Duration</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{formatTime(transcript.asr_metadata?.audio_duration || 0)}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>
+              {formatTime(getDuration())}
+            </div>
           </div>
         </div>
         <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Cpu size={24} color="var(--info)" />
           <div>
             <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Model</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{transcript.asr_metadata?.model_used || 'Parakeet'}</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+              {transcript.model_used || transcript.asr_metadata?.model_used || 'Parakeet'}
+            </div>
           </div>
         </div>
         <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <FileText size={24} color="var(--success)" />
           <div>
             <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Confidence</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{(transcript.asr_confidence * 100).toFixed(1)}%</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
+              {getConfidence()}
+            </div>
           </div>
         </div>
       </div>
@@ -166,8 +185,8 @@ const TranscriptView = ({ metricsOnly = false }) => {
           <h3 style={{ fontSize: '1rem', margin: 0, color: 'var(--text-secondary)' }}>Full Text</h3>
         </div>
         <div style={{ padding: '30px' }}>
-          <div className="transcript-text">
-            {transcript.full_text}
+          <div className="transcript-text" style={{ fontSize: '1.1rem', lineHeight: '1.8', color: '#e2e8f0' }}>
+            {transcript.full_text || transcript.text || "No text available."}
           </div>
         </div>
       </div>

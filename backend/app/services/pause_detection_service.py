@@ -8,13 +8,13 @@ class PauseDetectionService:
     """Service for detecting pauses and calculating speech/articulation rates"""
     
     # Threshold for what counts as a pause (in seconds)
-    PAUSE_THRESHOLD = 0.2  # 200ms - standard in speech analysis
+    # Lowered to 0.1s to catch "micro-pauses" visible in the graph
+    PAUSE_THRESHOLD = 0.1  
     
     # Classification thresholds for pause types
     SHORT_PAUSE_MAX = 0.5    # < 0.5s = short pause
     MEDIUM_PAUSE_MAX = 1.0   # 0.5-1.0s = medium pause (research-backed)
     EXTREME_PAUSE_MIN = 2.0  # >= 2.0s = extreme pause (rare in fluent adults)
-    # > 1.0s = long pause; >= 2.0s = extreme pause
     
     def __init__(self):
         """Initialize the pause detection service"""
@@ -27,18 +27,8 @@ class PauseDetectionService:
     ) -> Dict[str, Any]:
         """
         Detect pauses between speech segments
-        
-        Args:
-            segment_timestamps: List of segments with 'start', 'end', 'text'
-            audio_duration: Total audio duration in seconds
-        
-        Returns:
-            Dictionary with pause analysis:
-                - pauses: List of detected pauses with timestamps
-                - summary: Statistics about pauses (includes net_speaking_time)
         """
         if not segment_timestamps or len(segment_timestamps) < 2:
-            # Need at least 2 segments to detect pauses
             return self._empty_result(audio_duration)
         
         # Step 1: Calculate all gaps between segments
@@ -63,17 +53,35 @@ class PauseDetectionService:
         gaps = []
         
         for i in range(len(segments) - 1):
-            current_end = segments[i]['end']
-            next_start = segments[i + 1]['start']
+            # Normalize keys (some parsers use tuple, some dict)
+            curr = segments[i]
+            next_seg = segments[i + 1]
+            
+            # Handle dictionary vs list format
+            if isinstance(curr, dict):
+                current_end = float(curr.get('end', 0))
+            elif isinstance(curr, (list, tuple)):
+                current_end = float(curr[1])
+            else: continue
+
+            if isinstance(next_seg, dict):
+                next_start = float(next_seg.get('start', 0))
+            elif isinstance(next_seg, (list, tuple)):
+                next_start = float(next_seg[1])
+            else: continue
             
             gap_duration = next_start - current_end
             
+            # Use 3 decimal precision to avoid floating point issues (e.g. 0.199999)
+            gap_duration = round(gap_duration, 3)
+
             # Only include if gap is positive (no overlap)
             if gap_duration > 0:
                 gap = {
                     'start': current_end,
                     'end': next_start,
-                    'duration': round(gap_duration, 3),
+                    'duration': gap_duration,
+                    'type': 'unknown', # Will be filled later
                     'after_segment': i,
                     'before_segment': i + 1
                 }
@@ -112,28 +120,27 @@ class PauseDetectionService:
     ) -> Dict[str, Any]:
         """Calculate summary statistics for pauses"""
         
+        # Guard clause for empty pauses
         if not pauses:
-            return {
-                'total_pause_time': 0.0,
-                'pause_count': 0,
-                'average_pause_duration': 0.0,
-                'longest_pause': 0.0,
-                'shortest_pause': 0.0,
-                'net_speaking_time': audio_duration,
-                'pause_percentage': 0.0
-            }
+            return self._empty_stats(audio_duration)
         
         # Calculate totals
         total_pause_time = sum([p['duration'] for p in pauses])
         pause_count = len(pauses)
         
+        # Safety clamp
+        if total_pause_time > audio_duration:
+            total_pause_time = audio_duration
+        
         # Calculate net speaking time
         net_speaking_time = audio_duration - total_pause_time
         
         # Calculate statistics
-        average_pause = total_pause_time / pause_count
-        longest_pause = max([p['duration'] for p in pauses])
-        shortest_pause = min([p['duration'] for p in pauses])
+        average_pause = total_pause_time / pause_count if pause_count > 0 else 0
+        longest_pause = max([p['duration'] for p in pauses]) if pauses else 0
+        shortest_pause = min([p['duration'] for p in pauses]) if pauses else 0
+        
+        # Percent calculation
         pause_percentage = (total_pause_time / audio_duration * 100) if audio_duration > 0 else 0
         
         # Count pause types
@@ -160,62 +167,43 @@ class PauseDetectionService:
         """Return empty result when no pauses can be detected"""
         return {
             'pauses': [],
-            'summary': {
-                'total_pause_time': 0.0,
-                'pause_count': 0,
-                'average_pause_duration': 0.0,
-                'longest_pause': 0.0,
-                'shortest_pause': 0.0,
-                'net_speaking_time': audio_duration,
-                'pause_percentage': 0.0,
-                'short_pause_count': 0,
-                'medium_pause_count': 0,
-                'long_pause_count': 0
-            }
+            'summary': self._empty_stats(audio_duration)
+        }
+
+    def _empty_stats(self, audio_duration: float) -> Dict[str, Any]:
+        return {
+            'total_pause_time': 0.0,
+            'pause_count': 0,
+            'average_pause_duration': 0.0,
+            'longest_pause': 0.0,
+            'shortest_pause': 0.0,
+            'net_speaking_time': audio_duration,
+            'pause_percentage': 0.0,
+            'short_pause_count': 0,
+            'medium_pause_count': 0,
+            'long_pause_count': 0,
+            'extreme_pause_count': 0
         }
     
     def get_pause_insights(self, pause_data: Dict[str, Any]) -> str:
-        """
-        Generate human-readable insights from pause analysis
-        
-        Args:
-            pause_data: Result from detect_pauses()
-        
-        Returns:
-            String with insights about pause patterns
-        """
-        summary = pause_data['summary']
+        """Generate human-readable insights from pause analysis"""
+        summary = pause_data.get('summary', {})
+        pause_percentage = summary.get('pause_percentage', 0)
+        pause_count = summary.get('pause_count', 0)
         
         insights = []
         
         # Pause assessment
-        pause_percentage = summary['pause_percentage']
         if pause_percentage > 20:
-            insights.append(f"High pause time ({pause_percentage}%). Try to reduce long pauses.")
+            insights.append(f"High pause time ({pause_percentage}%). Try to maintain a steady flow.")
         elif pause_percentage > 10:
-            insights.append(f"Moderate pause time ({pause_percentage}%).")
-        else:
+            insights.append(f"Moderate pause time ({pause_percentage}%). Good pacing.")
+        elif pause_percentage > 2:
             insights.append("Good pause control.")
-        
-        # Pause count
-        pause_count = summary['pause_count']
-        if pause_count > 15:
-            insights.append(f"Many pauses detected ({pause_count}). Work on maintaining flow.")
-        elif pause_count > 0:
-            insights.append(f"{pause_count} pause(s) detected.")
-        
-        # Long pauses
-        long_pause_count = summary.get('long_pause_count', 0)
-        if long_pause_count > 0:
-            insights.append(f"{long_pause_count} long pause(s) detected. Work on smooth transitions.")
-        
-        extreme_pause_count = summary.get('extreme_pause_count', 0)
-        if extreme_pause_count > 0:
-            insights.append(f"{extreme_pause_count} extreme pause(s) (>2s) detected. This may indicate significant planning difficulty.")
+        else:
+            insights.append("Very few pauses detected. Remember to breathe between sentences.")
         
         return " ".join(insights)
 
-
 # Global service instance
 pause_detection_service = PauseDetectionService()
-
