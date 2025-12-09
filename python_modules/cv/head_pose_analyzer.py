@@ -91,13 +91,13 @@ class HeadPoseAnalyzer:
         # Distortion coefficients (assume no distortion)
         dist_coeffs = np.zeros((4, 1))
         
-        # Solve PnP
+        # Solve PnP with EPNP for better stability
         success, rotation_vector, translation_vector = cv2.solvePnP(
             self.model_points,
             image_points,
             camera_matrix,
             dist_coeffs,
-            flags=cv2.SOLVEPNP_ITERATIVE
+            flags=cv2.SOLVEPNP_EPNP  # More stable than ITERATIVE
         )
         
         if not success:
@@ -109,29 +109,57 @@ class HeadPoseAnalyzer:
         # Extract Euler angles
         yaw, pitch, roll = geometry_utils.rotation_matrix_to_euler_angles(rotation_matrix)
         
+        # Normalize angles to -180 to +180 range (prevents flipping artifacts)
+        yaw = self._normalize_angle(yaw)
+        pitch = self._normalize_angle(pitch)
+        roll = self._normalize_angle(roll)
+        
         return yaw, pitch, roll
     
-    def is_facing_camera(self, yaw: float, pitch: float, roll: float, strict: bool = False) -> bool:
+    def _normalize_angle(self, angle: float) -> float:
+        """Normalize angle to -180 to +180 range."""
+        while angle > 180:
+            angle -= 360
+        while angle < -180:
+            angle += 360
+        return angle
+    
+    def is_facing_camera(self, yaw: float, pitch: float, roll: float, 
+                        baseline_yaw: float = 0.0,
+                        baseline_pitch: float = 0.0,
+                        baseline_roll: float = 0.0,
+                        strict: bool = False) -> bool:
         """
         Determine if head is facing camera based on angles.
+        
+        Uses camera-relative detection: measures DEVIATION from baseline for ALL angles.
+        This universal approach works for any video orientation (professional, phone, etc.).
         
         Args:
             yaw: Yaw angle in degrees
             pitch: Pitch angle in degrees
             roll: Roll angle in degrees
+            baseline_yaw: Video's baseline yaw (camera pan)
+            baseline_pitch: Video's baseline pitch (camera tilt)
+            baseline_roll: Video's baseline roll (camera rotation)
             strict: Use stricter (comfortable) thresholds
             
         Returns:
             True if facing camera
         """
+        # Calculate deviations from camera baselines
+        yaw_deviation = abs(yaw - baseline_yaw)
+        pitch_deviation = abs(pitch - baseline_pitch)
+        roll_deviation = abs(roll - baseline_roll)
+        
         if strict:
-            return (abs(yaw) <= config.YAW_COMFORTABLE_LIMIT and 
-                   abs(pitch) <= config.PITCH_COMFORTABLE_LIMIT and
-                   abs(roll) <= config.ROLL_COMFORTABLE_LIMIT)
+            return (yaw_deviation <= config.YAW_COMFORTABLE_LIMIT and 
+                   pitch_deviation <= config.PITCH_COMFORTABLE_LIMIT and
+                   roll_deviation <= config.ROLL_COMFORTABLE_LIMIT)
         else:
-            return (abs(yaw) <= config.YAW_ATTENTION_LIMIT and 
-                   abs(pitch) <= config.PITCH_ATTENTION_LIMIT and
-                   abs(roll) <= config.ROLL_ATTENTION_LIMIT)
+            return (yaw_deviation <= config.YAW_ATTENTION_LIMIT and 
+                   pitch_deviation <= config.PITCH_ATTENTION_LIMIT and
+                   roll_deviation <= config.ROLL_ATTENTION_LIMIT)
     
     def __del__(self):
         """Clean up resources."""
@@ -142,6 +170,13 @@ class HeadPoseAnalyzer:
 def analyze_head_pose(pose_data: List[Dict], video_path: str) -> Dict:
     """
     Analyze head pose for all frames in video.
+    
+    Uses two-pass algorithm with UNIVERSAL baseline calibration:
+    1. First pass: Collect all pose angles
+    2. Calibrate camera baselines (median yaw, pitch, roll)
+    3. Second pass: Calculate eye contact using baselines
+    
+    This works for ANY video orientation (landscape, portrait, tilted, etc.)
     
     Args:
         pose_data: Pose data from pose detector
@@ -154,39 +189,87 @@ def analyze_head_pose(pose_data: List[Dict], video_path: str) -> Dict:
     
     analyzer = HeadPoseAnalyzer()
     
+    # First pass: Collect all pose angles
+    cap = video_utils.load_video(video_path)
+    all_pose_angles = []
+    
+    for frame_number, timestamp, frame in video_utils.extract_frames(cap):
+        pose_angles = analyzer.estimate_pose(frame)
+        if pose_angles:
+            all_pose_angles.append(pose_angles)
+    
+    video_utils.release_video(cap)
+    
+    if len(all_pose_angles) == 0:
+        logger.error(f"FaceMesh failed on ALL frames. Check video format/quality.")
+        # Return complete structure instead of partial result
+        return {
+            'valid_frames': 0,
+            'yaw': {'mean': 0.0, 'std': 0.0, 'max': 0.0, 'min': 0.0, 'baseline': 0.0},
+            'yaw_deviation': {'mean': 0.0, 'std': 0.0, 'max': 0.0},
+            'pitch': {'mean': 0.0, 'std': 0.0, 'max': 0.0, 'min': 0.0, 'baseline': 0.0},
+            'pitch_deviation': {'mean': 0.0, 'std': 0.0, 'max': 0.0},
+            'roll': {'mean': 0.0, 'std': 0.0, 'max': 0.0, 'min': 0.0, 'baseline': 0.0},
+            'roll_deviation': {'mean': 0.0, 'std': 0.0, 'max': 0.0},
+            'eye_contact_percentage': 0.0,
+            'facing_camera_frames': 0,
+            ' gaze_durations': {'mean': 0.0, 'median': 0.0, 'count': 0}
+        }
+    
+    # Calibrate camera baselines using median (robust to outliers)
+    yaw_values = [yaw for (yaw, pitch, roll) in all_pose_angles]
+    pitch_values = [pitch for (yaw, pitch, roll) in all_pose_angles]
+    roll_values = [roll for (yaw, pitch, roll) in all_pose_angles]
+    
+    baseline_yaw = float(np.median(yaw_values))
+    baseline_pitch = float(np.median(pitch_values))
+    baseline_roll = float(np.median(roll_values))
+    
+    logger.info(f"Camera baseline calibrated: yaw={baseline_yaw:.1f}°, "
+               f"pitch={baseline_pitch:.1f}°, roll={baseline_roll:.1f}°")
+    
+    # Second pass: Calculate metrics using baselines
     cap = video_utils.load_video(video_path)
     fps = video_utils.get_fps(cap)
     
     yaw_angles = []
     pitch_angles = []
     roll_angles = []
+    yaw_deviations = []
+    pitch_deviations = []
+    roll_deviations = []
     facing_camera_frames = 0
     valid_frames = 0
     
     gaze_durations = []
     current_gaze_start = None
     
-    for frame_number, timestamp, frame in video_utils.extract_frames(cap):
-        pose_angles = analyzer.estimate_pose(frame)
+    for (frame_number, timestamp, frame), (yaw, pitch, roll) in zip(
+        video_utils.extract_frames(cap), all_pose_angles
+    ):
+        yaw_angles.append(yaw)
+        pitch_angles.append(pitch)
+        roll_angles.append(roll)
+        yaw_deviations.append(abs(yaw - baseline_yaw))
+        pitch_deviations.append(abs(pitch - baseline_pitch))
+        roll_deviations.append(abs(roll - baseline_roll))
+        valid_frames += 1
         
-        if pose_angles:
-            yaw, pitch, roll = pose_angles
-            yaw_angles.append(yaw)
-            pitch_angles.append(pitch)
-            roll_angles.append(roll)
-            valid_frames += 1
-            
-            is_facing = analyzer.is_facing_camera(yaw, pitch, roll)
-            
-            if is_facing:
-                facing_camera_frames += 1
-                if current_gaze_start is None:
-                    current_gaze_start = timestamp
-            else:
-                if current_gaze_start is not None:
-                    duration = timestamp - current_gaze_start
-                    gaze_durations.append(duration)
-                    current_gaze_start = None
+        # Check if facing camera using ALL baselines
+        is_facing = analyzer.is_facing_camera(
+            yaw, pitch, roll, 
+            baseline_yaw, baseline_pitch, baseline_roll
+        )
+        
+        if is_facing:
+            facing_camera_frames += 1
+            if current_gaze_start is None:
+                current_gaze_start = timestamp
+        else:
+            if current_gaze_start is not None:
+                duration = timestamp - current_gaze_start
+                gaze_durations.append(duration)
+                current_gaze_start = None
     
     # Close final gaze if still active
     if current_gaze_start is not None:
@@ -195,9 +278,6 @@ def analyze_head_pose(pose_data: List[Dict], video_path: str) -> Dict:
     
     video_utils.release_video(cap)
     
-    if valid_frames == 0:
-        return {'valid_frames': 0}
-    
     eye_contact_percentage = (facing_camera_frames / valid_frames) * 100
     
     results = {
@@ -205,19 +285,37 @@ def analyze_head_pose(pose_data: List[Dict], video_path: str) -> Dict:
             'mean': float(np.mean(yaw_angles)),
             'std': float(np.std(yaw_angles)),
             'max': float(np.max(yaw_angles)),
-            'min': float(np.min(yaw_angles))
+            'min': float(np.min(yaw_angles)),
+            'baseline': baseline_yaw
+        },
+        'yaw_deviation': {
+            'mean': float(np.mean(yaw_deviations)),
+            'std': float(np.std(yaw_deviations)),
+            'max': float(np.max(yaw_deviations))
         },
         'pitch': {
             'mean': float(np.mean(pitch_angles)),
             'std': float(np.std(pitch_angles)),
             'max': float(np.max(pitch_angles)),
-            'min': float(np.min(pitch_angles))
+            'min': float(np.min(pitch_angles)),
+            'baseline': baseline_pitch
+        },
+        'pitch_deviation': {
+            'mean': float(np.mean(pitch_deviations)),
+            'std': float(np.std(pitch_deviations)),
+            'max': float(np.max(pitch_deviations))
         },
         'roll': {
             'mean': float(np.mean(roll_angles)),
             'std': float(np.std(roll_angles)),
             'max': float(np.max(roll_angles)),
-            'min': float(np.min(roll_angles))
+            'min': float(np.min(roll_angles)),
+            'baseline': baseline_roll
+        },
+        'roll_deviation': {
+            'mean': float(np.mean(roll_deviations)),
+            'std': float(np.std(roll_deviations)),
+            'max': float(np.max(roll_deviations))
         },
         'eye_contact_percentage': eye_contact_percentage,
         'facing_camera_frames': facing_camera_frames,

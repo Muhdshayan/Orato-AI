@@ -24,12 +24,13 @@ def calculate_craniocervical_angle(ear: Dict, c7: Dict) -> Optional[float]:
         c7: C7 vertebra landmark
         
     Returns:
-        Angle in degrees, or None if visibility too low
+        Posterior angle in degrees (145-165° normal), or None if visibility too low
     """
     if ear['visibility'] < 0.5 or c7['visibility'] < 0.5:
         return None
     
-    # Calculate angle with horizontal
+    # Calculate angle of ear-C7 line with horizontal
+    # This gives us the FRONT (anterior) angle
     angle = geometry_utils.calculate_angle_2d(
         np.array([c7['x'], c7['y']]),
         np.array([ear['x'], ear['y']])
@@ -40,7 +41,12 @@ def calculate_craniocervical_angle(ear: Dict, c7: Dict) -> Optional[float]:
     if angle > 90:
         angle = 180 - angle
     
-    return angle
+    # CCA is measured at the BACK of the neck (posterior angle)
+    # Posterior angle = 180° - anterior angle
+    # Normal range: 145°-165° (larger = better posture)
+    cca = 180 - angle
+    
+    return cca
 
 
 def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[float]:
