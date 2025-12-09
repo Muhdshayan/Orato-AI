@@ -10,10 +10,10 @@ import ProtectedRoute from './components/ProtectedRoute';
 import VideoUpload from './components/VideoUpload';
 import VideoStatus from './components/VideoStatus';
 import AnalysisResults from './components/AnalysisResults';
+import LandingPage from './components/LandingPage'; // [NEW]
+import Aurora from './components/Aurora'; // [NEW]
 
-import './index.css';
-
-// [FIX] Helper component to handle dynamic redirects correctly
+// Helper
 const RedirectToDashboard = () => {
   const { submissionId } = useParams();
   return <Navigate to={`/dashboard/${submissionId}`} replace />;
@@ -23,7 +23,7 @@ function AppContent() {
   const { user, isAuthenticated, signout } = useAuth();
   const [submissionId, setSubmissionId] = useState(null);
 
-  // Load session from localStorage on app start
+  // Load session
   useEffect(() => {
     const savedSubmissionId = localStorage.getItem('oratoai_submission_id');
     if (savedSubmissionId && isAuthenticated) {
@@ -31,7 +31,7 @@ function AppContent() {
     }
   }, [isAuthenticated]);
 
-  // Save session to localStorage
+  // Save session
   useEffect(() => {
     if (submissionId && isAuthenticated) {
       localStorage.setItem('oratoai_submission_id', submissionId);
@@ -51,26 +51,50 @@ function AppContent() {
   return (
     <Router>
       <div className="App">
-        <Toaster position="top-right" reverseOrder={false} />
-        <Header user={user} onSignOut={handleSignOut} />
+        {/* GLOBAL BACKGROUND - The "Alive" Effect */}
+        <Aurora 
+          colorStops={["#CC8F00", "#000000", "#CC8F00"]}
+          blend={0.5} 
+          amplitude={1.5} 
+          speed={1.0} 
+        />
+
+        <Toaster 
+          position="top-right" 
+          toastOptions={{
+            style: { background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' },
+            success: { iconTheme: { primary: '#34d399', secondary: '#000' } },
+            error: { iconTheme: { primary: '#f87171', secondary: '#fff' } }
+          }} 
+        />
         
-        <div className="container">
+        {/* Only show Header if logged in, otherwise Landing/Auth pages have their own layouts */}
+        {isAuthenticated && <Header user={user} onSignOut={handleSignOut} />}
+        
+        <div style={{ minHeight: isAuthenticated ? 'calc(100vh - 70px)' : '100vh' }}>
           <Routes>
-            {/* Home / Upload Page */}
+            {/* Landing Page (Public) */}
             <Route 
               path="/" 
               element={
+                isAuthenticated ? (
+                  <Navigate to="/upload" replace />
+                ) : (
+                  <LandingPage />
+                )
+              } 
+            />
+
+            {/* Main App (Protected) */}
+            <Route 
+              path="/upload" 
+              element={
                 <ProtectedRoute>
-                  <VideoUpload 
-                    onUploadSuccess={(id) => {
-                      setSubmissionId(id);
-                    }} 
-                  />
+                  <VideoUpload onUploadSuccess={(id) => setSubmissionId(id)} />
                 </ProtectedRoute>
               } 
             />
 
-            {/* Processing Status Page */}
             <Route 
               path="/status/:submissionId" 
               element={
@@ -80,7 +104,6 @@ function AppContent() {
               } 
             />
 
-            {/* Unified Dashboard (Tabs for Speech & Body Language) */}
             <Route 
               path="/dashboard/:submissionId" 
               element={
@@ -90,32 +113,15 @@ function AppContent() {
               } 
             />
 
-            {/* [FIXED] Backward Compatibility Redirects */}
-            {/* We use the RedirectToDashboard helper to capture the ID correctly */}
-            <Route 
-              path="/metrics/:submissionId" 
-              element={<RedirectToDashboard />} 
-            />
-            <Route 
-              path="/transcript/:submissionId" 
-              element={<RedirectToDashboard />} 
-            />
+            {/* Redirects */}
+            <Route path="/metrics/:submissionId" element={<RedirectToDashboard />} />
+            <Route path="/transcript/:submissionId" element={<RedirectToDashboard />} />
 
-            {/* Authentication */}
-            <Route 
-              path="/signin" 
-              element={
-                isAuthenticated ? <Navigate to="/" replace /> : <AuthForm mode="signin" />
-              } 
-            />
-            <Route 
-              path="/signup" 
-              element={
-                isAuthenticated ? <Navigate to="/" replace /> : <AuthForm mode="signup" />
-              } 
-            />
+            {/* Auth */}
+            <Route path="/signin" element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signin" />} />
+            <Route path="/signup" element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signup" />} />
 
-            {/* 404 Fallback */}
+            {/* 404 */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

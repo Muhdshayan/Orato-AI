@@ -13,18 +13,17 @@ This guide details how to run ORATO-AI on a RunPod instance using **3 Terminals*
 **Goal:** Install system dependencies, setup Database, and start MinIO.
 
 1. Open a new terminal in RunPod.
-2. Navigate to the project root:
-   ```bash
-   cd /workspace/Orato-AI
-````
 
-3.  Run the startup script (this sets up Postgres & starts MinIO):
+2.  Run the startup script (this sets up Postgres & starts MinIO):
     ```bash
     chmod +x startup.sh
     ./startup.sh
+    export MINIO_ROOT_USER=MINIO_ACCESS
+export MINIO_ROOT_PASSWORD=MINIO_SECRET
+./minio server /workspace/minio-data --console-address ":9001"
     ```
       * **Keep this terminal open.** It is running your Storage Server.
-
+````
 -----
 
 ## 🔵 Terminal 2: Backend

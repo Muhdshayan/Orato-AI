@@ -53,6 +53,7 @@ class VisualAnalysisService:
             # 2. Run the Analysis (The Heavy Lifting)
             print(f"🏃 Running CV Pipeline on: {video_path}")
             
+            # NOTE: analyze_video is expected to populate 'neck_flexion_angles' in 'time_series'
             analysis_result = analyze_video(
                 video_path=video_path, 
                 output_path=None, 
@@ -62,7 +63,8 @@ class VisualAnalysisService:
             # 3. Store result in Database
             self._store_result(submission_id, analysis_result)
             
-            return analysis_result
+            # Return downsampled result for immediate display
+            return self._prepare_for_frontend(analysis_result)
 
         except Exception as e:
             print(f"❌ Visual Analysis Failed: {e}")
@@ -102,8 +104,6 @@ class VisualAnalysisService:
 
         try:
             # 1. Create Artifact (Summary of the whole video)
-            # IMPORTANT: We store the FULL JSON result in 'keypoints_json' so the frontend 
-            # can retrieve all details (feedback, ratings, etc.) easily.
             full_result_json = json.dumps(data)
             
             artifact_query = """
@@ -112,7 +112,6 @@ class VisualAnalysisService:
             RETURNING artifact_id
             """
             
-            # We use frame_index 0 to represent the "Whole Video Analysis Report"
             artifact_result = execute_query(
                 artifact_query, 
                 (submission_id, 0, full_result_json), 
@@ -120,7 +119,7 @@ class VisualAnalysisService:
             )
             artifact_id = artifact_result['artifact_id']
 
-            # 2. Insert Posture Metrics (For querying/analytics)
+            # 2. Insert Posture Metrics
             posture = data.get('posture', {})
             head = data.get('head_pose', {})
             
@@ -136,7 +135,7 @@ class VisualAnalysisService:
             
             execute_query(posture_query, (artifact_id, slouch_pct, head_yaw, 0.0, posture_score))
 
-            # 3. Insert Gesture Metrics (For querying/analytics)
+            # 3. Insert Gesture Metrics
             gestures = data.get('gestures', {})
             
             gesture_query = """
@@ -161,10 +160,8 @@ class VisualAnalysisService:
     def get_analysis_result(self, submission_id: str) -> Optional[Dict]:
         """
         Retrieve the full analysis JSON from the database.
-        We look for the 'summary artifact' (frame_index=0) in cv_artifacts table.
         """
         try:
-            # We fetch the full JSON blob we saved in _store_result
             query = """
             SELECT keypoints_json 
             FROM cv_artifacts 
@@ -175,15 +172,57 @@ class VisualAnalysisService:
             result = execute_query(query, (submission_id,), fetch_one=True)
             
             if result and result['keypoints_json']:
-                # Postgres JSONB driver usually returns a dict automatically.
-                # If it's a string, we parse it.
                 data = result['keypoints_json']
-                return json.loads(data) if isinstance(data, str) else data
+                data = json.loads(data) if isinstance(data, str) else data
+                # PROCESS DATA BEFORE SENDING TO FRONTEND
+                return self._prepare_for_frontend(data)
             
             return None
             
         except Exception as e:
             print(f"❌ Failed to retrieve analysis result: {e}")
             return None
+
+    def _prepare_for_frontend(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Optimizes the raw data for frontend display:
+        1. Checks for missing keys (e.g., neck_flexion).
+        2. Downsamples huge time-series arrays.
+        """
+        if 'time_series' in data:
+            # Ensure neck_flexion_angles list exists to prevent frontend crashes
+            if 'neck_flexion_angles' not in data['time_series']:
+                # Populate with zeros matching timestamp length if missing
+                ts_len = len(data['time_series'].get('timestamps', []))
+                data['time_series']['neck_flexion_angles'] = [0] * ts_len
+
+            data['time_series'] = self._downsample_timeseries(data['time_series'])
+        
+        return data
+
+    def _downsample_timeseries(self, series_data: Dict[str, Any], target_points: int = 150) -> Dict[str, Any]:
+        """
+        Reduces 10,000+ points to ~150 points for graphing.
+        Uses simple slicing (decimation) which preserves trend shape efficiently.
+        """
+        if not series_data or 'timestamps' not in series_data:
+            return series_data
+            
+        total_points = len(series_data['timestamps'])
+        if total_points <= target_points:
+            return series_data
+            
+        # Calculate step size
+        step = total_points // target_points
+        
+        downsampled = {}
+        for key, values in series_data.items():
+            if isinstance(values, list) and len(values) == total_points:
+                downsampled[key] = values[::step]
+            else:
+                downsampled[key] = values # Keep non-list or mismatched data as is
+                
+        print(f"📉 Downsampled time series from {total_points} to {len(downsampled['timestamps'])} points.")
+        return downsampled
 
 visual_analysis_service = VisualAnalysisService()

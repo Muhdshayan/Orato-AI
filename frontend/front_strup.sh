@@ -7,3 +7,5 @@ apt-get install -y nodejs
 
 # 3. Verify it worked (should print a version number like v18.x.x)
 node -v
+
+npm install lucide-react react-hot-toast chart.js react-chartjs-2 react-dropzone

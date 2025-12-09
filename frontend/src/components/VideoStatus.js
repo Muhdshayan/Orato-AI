@@ -2,25 +2,23 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { toast } from "react-toastify"
-import { AlertCircle, RefreshCw, FileText, CheckCircle2, Clock, Zap } from "lucide-react"
+import toast from "react-hot-toast"
+import { AlertCircle, FileText, CheckCircle2, Clock, Zap, ArrowRight } from "lucide-react"
 import { videoAPI, transcriptAPI } from "../services/api"
 
 const VideoStatus = () => {
   const { submissionId } = useParams()
   const navigate = useNavigate()
+  
+  // State
   const [status, setStatus] = useState(null)
   const [transcriptStatus, setTranscriptStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isRefreshing, setIsRefreshing] = useState(false)
   const [isTranscribing, setIsTranscribing] = useState(false)
-  const [transcribeProgress, setTranscribeProgress] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [metricsStatus, setMetricsStatus] = useState(null)
-  const [transcribeDoneThisSession, setTranscribeDoneThisSession] = useState(false)
-  const [metricsDoneThisSession, setMetricsDoneThisSession] = useState(false)
 
-  // Fetch status and files
+  // Fetch logic
   const fetchData = useCallback(async () => {
     try {
       const [statusData, transcriptData] = await Promise.all([
@@ -30,277 +28,162 @@ const VideoStatus = () => {
 
       setStatus(statusData)
       setTranscriptStatus(transcriptData)
+      
+      // Check metrics silently
       try {
         const m = await transcriptAPI.getSpeechMetrics(submissionId)
         setMetricsStatus(m)
       } catch {
         setMetricsStatus(null)
       }
-
-      console.log("📊 Status data:", statusData)
-      console.log("📄 Transcript status:", transcriptData)
     } catch (error) {
-      console.error("Error fetching data:", error)
-      toast.error(`Failed to fetch status: ${error.message}`)
+      toast.error(`Sync Error: ${error.message}`)
     } finally {
       setIsLoading(false)
-      setIsRefreshing(false)
     }
   }, [submissionId])
 
-  // Auto-refresh for processing status
+  // Polling
   useEffect(() => {
-    if (!submissionId) {
-      navigate("/")
-      return
-    }
-
+    if (!submissionId) return navigate("/")
     fetchData()
+    const interval = setInterval(fetchData, 5000)
+    return () => clearInterval(interval)
+  }, [submissionId, fetchData, navigate])
 
-    let interval
-    if (status?.status === "processing") {
-      interval = setInterval(fetchData, 3000)
-    }
-
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [submissionId, status?.status, fetchData, navigate])
-
-  // Manual refresh
-  const handleRefresh = () => {
-    setIsRefreshing(true)
-    fetchData()
-  }
-
-  // Start transcription
+  // Actions
   const handleGenerateTranscript = async () => {
     try {
       setIsTranscribing(true)
-      setTranscribeProgress(5)
-      const res = await transcriptAPI.generate(submissionId)
-      if (res?.status === "completed") {
-        setTranscribeProgress(100)
-        setIsTranscribing(false)
-        setTranscriptStatus({ status: "completed" })
-        setTranscribeDoneThisSession(true)
-        return
-      }
-      let tries = 0
-      const interval = setInterval(async () => {
-        tries++
-        try {
-          const st = await transcriptAPI.getStatus(submissionId)
-          if (st?.progress) setTranscribeProgress(st.progress)
-          if (st?.status === "completed") {
-            clearInterval(interval)
-            setTranscribeProgress(100)
-            setIsTranscribing(false)
-            setTranscriptStatus({ status: "completed" })
-            setTranscribeDoneThisSession(true)
-          } else if (st?.status === "failed") {
-            clearInterval(interval)
-            setIsTranscribing(false)
-            toast.error("Transcription failed")
-          } else if (!st?.progress) {
-            setTranscribeProgress((p) => Math.min(95, p + 3))
-          }
-          if (tries > 120) {
-            clearInterval(interval)
-            setIsTranscribing(false)
-            toast.error("Transcription timed out")
-          }
-        } catch (err) {
-          if (tries > 120) {
-            clearInterval(interval)
-            setIsTranscribing(false)
-            toast.error("Transcription polling failed")
-          }
-        }
-      }, 3000)
+      toast.loading("Initializing Speech Engine...", { id: 'transcribe' })
+      await transcriptAPI.generate(submissionId)
+      toast.success("Transcription started", { id: 'transcribe' })
+      fetchData()
     } catch (e) {
+      toast.error(e.message, { id: 'transcribe' })
+    } finally {
       setIsTranscribing(false)
-      toast.error(e.message || "Failed to start transcription")
     }
   }
 
   const handleAnalyzeMetrics = async () => {
     try {
       setIsAnalyzing(true)
-      const res = await transcriptAPI.analyzeSpeech(submissionId)
-      if (res?.status === "completed") {
-        setMetricsStatus({ status: "completed" })
-        setMetricsDoneThisSession(true)
-      }
+      toast.loading("Computing Biometrics...", { id: 'metrics' })
+      await transcriptAPI.analyzeSpeech(submissionId)
+      toast.success("Analysis Complete", { id: 'metrics' })
+      fetchData()
     } catch (e) {
-      toast.error(e.message || "Failed to generate metrics")
+      toast.error(e.message, { id: 'metrics' })
     } finally {
       setIsAnalyzing(false)
     }
   }
 
-  const handleViewTranscript = async () => {
-    try {
-      const res = await transcriptAPI.getTranscript(submissionId)
-      if (res && res.transcript_id) {
-        navigate(`/transcript/${submissionId}`)
-        return
-      }
-      throw new Error("Transcript not found")
-    } catch (e) {
-      toast.error("Transcript not ready yet. Please transcribe first.")
-      setTranscriptStatus({ status: "processing" })
-    }
-  }
+  if (isLoading) return <div className="card p-4 text-center"><div className="spinner"></div><p>Synchronizing...</p></div>
 
-  if (isLoading) {
-    return (
-      <div className="card text-center">
-        <RefreshCw className="loading-spinner" size={48} style={{ margin: "20px auto" }} />
-        <p>Loading status...</p>
+  if (!status) return (
+    <div className="container" style={{paddingTop: 40}}>
+      <div className="card p-4 text-center" style={{borderColor: 'var(--error)'}}>
+        <AlertCircle size={48} color="var(--error)" style={{margin:'0 auto 20px'}}/>
+        <h3>Session Not Found</h3>
+        <button className="btn btn-secondary mt-4" onClick={() => navigate("/")}>Return to Base</button>
       </div>
-    )
-  }
+    </div>
+  )
 
-  if (!status) {
-    return (
-      <div className="card">
-        <div className="alert alert-danger">
-          <AlertCircle size={20} style={{ marginRight: "8px", verticalAlign: "middle" }} />
-          Submission not found. Please check the submission ID.
-        </div>
-        <button className="btn btn-secondary" onClick={() => navigate("/")}>
-          Back to Upload
-        </button>
-      </div>
-    )
-  }
-
-  const stepDoneVideo = status?.status === "completed"
-  const stepDoneTranscript = transcriptStatus?.status === "completed"
-  const stepDoneTranscriptVisual = transcribeDoneThisSession
-  const stepDoneMetrics = metricsStatus?.status === "completed"
-  const stepDoneMetricsVisual = metricsDoneThisSession
+  // Determine State
+  const videoDone = status.status === "completed"
+  const transDone = transcriptStatus?.status === "completed"
+  const metricsDone = metricsStatus?.status === "completed"
 
   return (
-    <div className="journey-container">
-      <div className="journey-card">
-        {/* Header */}
-        <div className="journey-header">
-          <h2>Your Analysis Journey</h2>
-          <p>Track your video's transformation through AI-powered analysis</p>
-        </div>
+    <div className="container" style={{ maxWidth: '800px', padding: '40px 20px' }}>
+      
+      <div style={{ textAlign: 'center', marginBottom: 60 }}>
+        <h1>System Status</h1>
+        <p className="text-muted">Processing Pipeline for Session <span style={{fontFamily:'var(--font-mono)', color:'var(--accent-gold)'}}>{submissionId.split('-')[0]}</span></p>
+      </div>
 
-        {/* Timeline Journey */}
-        <div className="journey-timeline">
-          {/* Step 1: Upload */}
-          <div className={`journey-step ${stepDoneVideo ? "completed" : "processing"}`}>
-            <div className="step-marker">{stepDoneVideo ? <CheckCircle2 size={24} /> : <Clock size={24} />}</div>
-            <div className="step-content">
-              <h3>Video Uploaded</h3>
-              <p className="step-description">
-                Your presentation video has been successfully uploaded and is being processed
-              </p>
-              {!stepDoneVideo && (
-                <div className="step-status">
-                  <div className="spinner-mini"></div>
-                  Processing... please wait
-                </div>
-              )}
-              {stepDoneVideo && <div className="step-status success">✓ Complete</div>}
-            </div>
+      <div style={{ position: 'relative', marginTop: '40px' }}>
+        
+        {/* Step 1: Upload */}
+        <div style={{ 
+          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
+          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
+          opacity: videoDone ? 1 : 0.7
+        }}>
+          <div style={{ color: videoDone ? 'var(--success)' : 'var(--accent-gold)' }}>
+            {videoDone ? <CheckCircle2 size={32} /> : <Clock size={32} className="spinner" />}
           </div>
-
-          {/* Connector */}
-          <div className={`journey-connector ${stepDoneTranscriptVisual ? "completed" : ""}`}></div>
-
-          {/* Step 2: Transcription */}
-          <div
-            className={`journey-step ${stepDoneTranscriptVisual ? "completed" : stepDoneVideo ? "active" : "disabled"}`}
-          >
-            <div className="step-marker">
-              {stepDoneTranscriptVisual ? <CheckCircle2 size={24} /> : <Zap size={24} />}
-            </div>
-            <div className="step-content">
-              <h3>Transcribe Audio</h3>
-              <p className="step-description">Convert your speech to text for detailed analysis and insights</p>
-
-              {stepDoneVideo && !transcribeDoneThisSession && (
-                <div className="step-actions">
-                  <button className="btn btn-journey" onClick={handleGenerateTranscript} disabled={isTranscribing}>
-                    {isTranscribing ? "Transcribing..." : "Start Transcription"}
-                  </button>
-                  {(isTranscribing || (transcriptStatus && transcriptStatus.status === "processing")) && (
-                    <>
-                      <div className="progress-mini">
-                        <div className="progress-fill-mini" style={{ width: `${transcribeProgress}%` }} />
-                      </div>
-                      <p className="progress-text">{transcribeProgress}% complete</p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {transcribeDoneThisSession && (
-                <div className="step-status success">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleViewTranscript}
-                    style={{ marginTop: "12px" }}
-                  >
-                    <FileText size={16} /> View Transcript
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Connector */}
-          <div className={`journey-connector ${stepDoneMetricsVisual ? "completed" : ""}`}></div>
-
-          {/* Step 3: Metrics */}
-          <div
-            className={`journey-step ${stepDoneMetricsVisual ? "completed" : transcribeDoneThisSession ? "active" : "disabled"}`}
-          >
-            <div className="step-marker">{stepDoneMetricsVisual ? <CheckCircle2 size={24} /> : <Zap size={24} />}</div>
-            <div className="step-content">
-              <h3>Generate Insights</h3>
-              <p className="step-description">
-                Analyze speech patterns, delivery metrics, and presentation effectiveness
-              </p>
-
-              {transcribeDoneThisSession && !stepDoneMetricsVisual && (
-                <div className="step-actions">
-                  <button className="btn btn-journey" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
-                    {isAnalyzing ? "Analyzing..." : "Generate Metrics"}
-                  </button>
-                </div>
-              )}
-
-              {stepDoneMetricsVisual && (
-                <div className="step-status success">
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => navigate(`/metrics/${submissionId}`)}
-                    style={{ marginTop: "12px" }}
-                  >
-                    View Detailed Insights
-                  </button>
-                </div>
-              )}
+          <div style={{ flex: 1 }}>
+            <h3>Video Ingestion</h3>
+            <p className="text-muted">Upload, compression, and format verification.</p>
+            <div style={{ marginTop: 8, fontSize: '0.9rem', color: videoDone ? 'var(--success)' : 'var(--accent-gold)' }}>
+              {videoDone ? "Complete" : `Processing... ${(status.progress || 0).toFixed(0)}%`}
             </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="journey-actions">
-          <button className="btn btn-secondary btn-sm" onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw size={14} className={isRefreshing ? "loading-spinner" : ""} /> Refresh Status
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={() => navigate("/")}>
-            Upload Another Video
-          </button>
+        {/* Step 2: Transcription */}
+        <div style={{ 
+          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
+          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
+          opacity: transDone ? 1 : (videoDone ? 1 : 0.3)
+        }}>
+          <div style={{ color: transDone ? 'var(--success)' : 'var(--text-muted)' }}>
+            {transDone ? <CheckCircle2 size={32} /> : <FileText size={32} />}
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3>Neural Transcription</h3>
+            <p className="text-muted">Convert audio to text using Parakeet ASR model.</p>
+            
+            {!transDone && videoDone && (
+              <div style={{ marginTop: '16px' }}>
+                {transcriptStatus?.status === 'processing' ? (
+                  <div className="text-gold">Engine Running...</div>
+                ) : (
+                  <button className="btn btn-primary" onClick={handleGenerateTranscript} disabled={isTranscribing}>
+                    {isTranscribing ? "Initializing..." : "Start Transcription"}
+                  </button>
+                )}
+              </div>
+            )}
+            {transDone && <div style={{ marginTop: 8, fontSize: '0.9rem', color: 'var(--success)' }}>Complete</div>}
+          </div>
         </div>
+
+        {/* Step 3: Analytics */}
+        <div style={{ 
+          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
+          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
+          opacity: metricsDone ? 1 : (transDone ? 1 : 0.3)
+        }}>
+          <div style={{ color: metricsDone ? 'var(--success)' : 'var(--text-muted)' }}>
+            {metricsDone ? <CheckCircle2 size={32} /> : <Zap size={32} />}
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3>Insight Generation</h3>
+            <p className="text-muted">Compute speech pace, fillers, and visual biometrics.</p>
+            
+            {!metricsDone && transDone && (
+              <div style={{ marginTop: '16px' }}>
+                <button className="btn btn-primary" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
+                  {isAnalyzing ? "Processing..." : "Generate Analytics"}
+                </button>
+              </div>
+            )}
+            
+            {metricsDone && (
+              <div style={{ marginTop: '16px' }}>
+                <button className="btn btn-primary" onClick={() => navigate(`/dashboard/${submissionId}`)}>
+                  View Report <ArrowRight size={16} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
       </div>
     </div>
   )

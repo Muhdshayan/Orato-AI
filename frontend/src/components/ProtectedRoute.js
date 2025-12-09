@@ -1,7 +1,6 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Loader } from 'lucide-react';
 
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
@@ -9,15 +8,23 @@ const ProtectedRoute = ({ children }) => {
 
   if (isLoading) {
     return (
-      <div className="loading-container">
-        <Loader size={32} className="spinning" />
-        <p>Loading...</p>
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        flexDirection: 'column',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--bg-app)'
+      }}>
+        <div className="spinner" style={{ width: '48px', height: '48px', borderWidth: '4px' }}></div>
+        <p style={{ marginTop: '20px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', letterSpacing: '0.05em' }}>
+          AUTHENTICATING...
+        </p>
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    // Redirect to signin page with return url
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 

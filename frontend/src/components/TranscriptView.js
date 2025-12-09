@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { transcriptAPI } from "../services/api"
 import toast from "react-hot-toast"
-import { Loader, RefreshCw, ArrowLeft, Copy, Check, AlertCircle, Download } from "lucide-react"
+import { Loader, RefreshCw, ArrowLeft, Copy, Check, AlertCircle, Download, FileText, Clock, Cpu } from "lucide-react"
 
 const TranscriptView = ({ metricsOnly = false }) => {
   const { submissionId } = useParams()
@@ -15,8 +15,9 @@ const TranscriptView = ({ metricsOnly = false }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [copiedText, setCopiedText] = useState(false)
-  const [speechMetrics, setSpeechMetrics] = useState(null)
-  const [analyzing, setAnalyzing] = useState(false)
+  
+  // Note: speechMetrics state removed if unused in this view, 
+  // or you can keep it if you plan to expand this component.
 
   const fetchTranscript = useCallback(async () => {
     try {
@@ -35,15 +36,6 @@ const TranscriptView = ({ metricsOnly = false }) => {
   useEffect(() => {
     fetchTranscript()
   }, [fetchTranscript])
-
-  useEffect(() => {
-    if (!transcript && !error && loading === false) {
-      const interval = setInterval(() => {
-        fetchTranscript()
-      }, 5000)
-      return () => clearInterval(interval)
-    }
-  }, [transcript, error, loading, fetchTranscript])
 
   const copyToClipboard = async () => {
     if (!transcript?.full_text) return
@@ -69,75 +61,33 @@ const TranscriptView = ({ metricsOnly = false }) => {
     toast.success("Transcript downloaded!")
   }
 
-  // Fetch speech metrics
-  const fetchSpeechMetrics = useCallback(async () => {
-    try {
-      const metrics = await transcriptAPI.getSpeechMetrics(submissionId)
-      if (metrics.status === "completed") {
-        setSpeechMetrics(metrics)
-      }
-    } catch (err) {
-      // Metrics don't exist yet, that's okay
-      console.log("No speech metrics yet")
-    }
-  }, [submissionId])
-
-  // Analyze speech
-  const handleAnalyzeSpeech = async () => {
-    try {
-      setAnalyzing(true)
-      toast.loading("Analyzing speech metrics...", { id: "analyze" })
-
-      const result = await transcriptAPI.analyzeSpeech(submissionId)
-
-      if (result.status === "completed") {
-        setSpeechMetrics(result.metrics)
-        toast.success("Speech analysis completed!", { id: "analyze" })
-      }
-    } catch (err) {
-      console.error("Speech analysis error:", err)
-      toast.error(`Failed to analyze speech: ${err.message}`, { id: "analyze" })
-    } finally {
-      setAnalyzing(false)
-    }
-  }
-
-  // Load metrics on mount
-  useEffect(() => {
-    if (transcript) {
-      fetchSpeechMetrics()
-    }
-  }, [transcript, fetchSpeechMetrics])
-
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60)
     const secs = Math.floor(seconds % 60)
     return `${mins}:${secs.toString().padStart(2, "0")}`
   }
 
-  // RENDER LOGIC
   if (loading) {
     return (
-      <div className="loading-container">
-        <Loader size={32} className="spinning" />
-        <p>Loading Transcript...</p>
-        <span className="text-muted">This may take a moment while the audio is transcribed.</span>
+      <div className="card text-center" style={{ padding: '60px' }}>
+        <div className="spinner"></div>
+        <p style={{ marginTop: '20px', color: 'var(--text-secondary)' }}>Decrypting Audio Data...</p>
       </div>
     )
   }
 
   if (error || !transcript) {
     return (
-      <div className="card text-center">
-        <AlertCircle size={48} className="text-danger" style={{ marginBottom: "1rem" }} />
-        <h2>Transcript Not Available</h2>
-        <p className="text-muted">{error || `No transcript found for submission: ${submissionId}`}</p>
-        <div className="action-buttons">
+      <div className="card text-center" style={{ borderColor: 'var(--danger)' }}>
+        <AlertCircle size={48} color="var(--danger)" style={{ marginBottom: "1rem", margin: '0 auto' }} />
+        <h2 style={{ color: 'var(--danger)' }}>Transcript Unavailable</h2>
+        <p className="text-muted">{error || `No data found for ID: ${submissionId}`}</p>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
           <button onClick={() => navigate("/")} className="btn btn-secondary">
-            <ArrowLeft size={16} /> Back to Upload
+            <ArrowLeft size={16} /> Back
           </button>
-          <button onClick={fetchTranscript} className="btn">
-            <RefreshCw size={16} /> Try Again
+          <button onClick={fetchTranscript} className="btn btn-primary">
+            <RefreshCw size={16} /> Retry
           </button>
         </div>
       </div>
@@ -145,61 +95,83 @@ const TranscriptView = ({ metricsOnly = false }) => {
   }
 
   return (
-    <div className="transcript-container">
-      <div className="transcript-header-bar">
-        <button onClick={() => navigate(`/status/${submissionId}`)} className="btn btn-secondary">
-          <ArrowLeft size={16} /> Back to Status
-        </button>
-        <h1>{metricsOnly ? "Speech Metrics" : "Presentation Transcript"}</h1>
-        <div className="action-buttons">
-          <button onClick={copyToClipboard} className="btn btn-secondary">
-            {copiedText ? <Check size={16} /> : <Copy size={16} />}
-            {copiedText ? "Copied!" : "Copy"}
+    <div className="container" style={{ maxWidth: '1000px', paddingBottom: '60px' }}>
+      
+      {/* Header Bar */}
+      <div className="card" style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        padding: '20px', 
+        marginBottom: '24px',
+        background: 'var(--bg-elevated)',
+        flexWrap: 'wrap',
+        gap: '16px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={() => navigate(`/dashboard/${submissionId}`)} className="btn btn-secondary" style={{ padding: '8px' }}>
+            <ArrowLeft size={20} />
           </button>
-          <button onClick={downloadTranscript} className="btn btn-secondary">
-            <Download size={16} /> Download
+          <div>
+            <h2 style={{ fontSize: '1.25rem', margin: 0, lineHeight: 1.2 }}>Transcript</h2>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>ID: {submissionId.split('-')[0]}...</span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={copyToClipboard} className="btn btn-secondary" title="Copy Text">
+            {copiedText ? <Check size={18} color="var(--success)" /> : <Copy size={18} />}
           </button>
-          <button onClick={fetchTranscript} className="btn btn-secondary">
-            <RefreshCw size={16} /> Refresh
+          <button onClick={downloadTranscript} className="btn btn-secondary" title="Download .txt">
+            <Download size={18} />
+          </button>
+          <button onClick={fetchTranscript} className="btn btn-secondary" title="Refresh">
+            <RefreshCw size={18} />
           </button>
         </div>
       </div>
 
-      <div className="card">
-        <div className="grid">
+      {/* Metadata Grid */}
+      <div className="grid" style={{ marginBottom: '24px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Clock size={24} color="var(--primary)" />
           <div>
-            <h4>Audio Duration</h4>
-            <p>{formatTime(transcript.audio_duration)}</p>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Duration</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>{formatTime(transcript.asr_metadata?.audio_duration || 0)}</div>
           </div>
+        </div>
+        <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Cpu size={24} color="var(--info)" />
           <div>
-            <h4>Model Used</h4>
-            <p>{transcript.model_used}</p>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Model</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{transcript.asr_metadata?.model_used || 'Parakeet'}</div>
           </div>
+        </div>
+        <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <FileText size={24} color="var(--success)" />
           <div>
-            <h4>Device</h4>
-            <p>{transcript.device_used}</p>
-          </div>
-          <div>
-            <h4>Transcribed At</h4>
-            <p>{new Date(transcript.created_at).toLocaleString()}</p>
+            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Confidence</div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{(transcript.asr_confidence * 100).toFixed(1)}%</div>
           </div>
         </div>
       </div>
 
-      {!metricsOnly && (
-        <div className="card">
-          <div className="card-header">
-            <h2>Transcript</h2>
-          </div>
-          <div className="transcript-text">{transcript.full_text}</div>
+      {/* Main Text Content */}
+      <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
+        <div style={{ 
+          padding: '16px 24px', 
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          background: 'rgba(255,255,255,0.02)'
+        }}>
+          <h3 style={{ fontSize: '1rem', margin: 0, color: 'var(--text-secondary)' }}>Full Text</h3>
         </div>
-      )}
-
-      <div className="transcript-footer">
-        <button onClick={() => navigate(`/status/${submissionId}`)} className="btn btn-secondary">
-          <ArrowLeft size={16} /> Back to Status
-        </button>
+        <div style={{ padding: '30px' }}>
+          <div className="transcript-text">
+            {transcript.full_text}
+          </div>
+        </div>
       </div>
+
     </div>
   )
 }
