@@ -233,7 +233,8 @@ def transcribe_audio(audio_path: str):
                 timestep_array = np.array(timestep)
             
             # Frame rate: NeMo models typically use 10ms frames (0.01s per frame)
-            frame_duration = 0.01  # 10ms per frame
+            frame_duration = 0.08  # 80ms per encoder frame (8x subsampling of 10ms raw frames)
+
             
             # Create word-level timestamps from timestep data
             word_timestamps = []

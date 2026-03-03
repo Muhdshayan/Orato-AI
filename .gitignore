@@ -43,13 +43,40 @@ minio-data/
 *.sqlite
 *.sqlite3
 
-# Media files (test videos/audio)
-*.mp4
-*.wav
+# Media files (audio, video, images)
+# Audio
 *.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+*.m4a
+*.opus
+# Video
+*.mp4
 *.avi
 *.mov
+*.mkv
 *.webm
+*.flv
+*.wmv
+*.m4v
+*.3gp
+# Images
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.tif
+*.webp
+*.svg
+*.ico
+*.heic
+*.raw
+
 
 # Logs
 logs/
@@ -74,3 +101,16 @@ temp/
 
 venv_cv
 debug_frames
+
+# NeMo model files (too large for git — download separately)
+ParakeetNemo/
+*.nemo
+
+# Broken pip install temp files (e.g. =4.10.0)
+=*
+
+# Local config with secrets
+config.env
+
+
+Spoken English Presentation Class at Yashal English House.mp4

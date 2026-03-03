@@ -164,7 +164,8 @@ class ParakeetModelServer:
                     else:
                         timestep_array = np.array(timestep)
                     
-                    frame_duration = 0.01  # 10ms per frame
+                    frame_duration = 0.08  # 80ms per encoder frame (8x subsampling of 10ms raw frames)
+
                     words_per_segment = 15
                     
                     if len(timestep_array) > 0 and len(words) > 0:
