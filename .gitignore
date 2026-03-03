@@ -106,6 +106,27 @@ debug_frames
 ParakeetNemo/
 *.nemo
 
+# ML model weights & checkpoints
+*.pt
+*.pth
+*.bin
+*.ckpt
+*.pkl
+*.h5
+*.onnx
+*.safetensors
+
+# Large document files
+*.pdf
+*.docx
+*.pptx
+*.xlsx
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+
 # Broken pip install temp files (e.g. =4.10.0)
 =*
 
