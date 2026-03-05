@@ -25,8 +25,10 @@ async def transcribe_in_background(submission_id: str, job_id: str, audio_object
             minio.download_to_file(audio_object, local_audio)
             print(f"✅ Downloaded audio file for transcription")
 
-            # Transcribe
-            transcript_data = asr_service.transcribe_audio(local_audio)
+            # Transcribe (Offload synchronous request to a threadpool to avoid freezing FastAPI)
+            import asyncio
+            transcript_data = await asyncio.to_thread(asr_service.transcribe_audio, local_audio)
+            
             transcript_id = asr_service.store_transcript(submission_id, transcript_data)
             print(f"✅ Transcription completed: {transcript_id}")
 

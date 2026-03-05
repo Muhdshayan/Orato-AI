@@ -91,8 +91,10 @@ class SimpleASRService:
                 error_msg = data.get('error', 'Unknown error')
                 raise Exception(f"Parakeet transcription failed: {error_msg}")
             
-            print(f"✅ Parakeet transcription completed: {len(data.get('text', ''))} characters")
-            print(f"   Model: {data.get('model')}, Device: {data.get('device')}")
+            tier_used = data.get('tier_used', 'Unknown Tier')
+            print(f"\n✅ Parakeet transcription completed successfully via: {tier_used}")
+            print(f"   Characters: {len(data.get('text', ''))}")
+            print(f"   Model: {data.get('model')}, Device: {data.get('device')}\n")
             
             # Format segments from Parakeet timestamps (new format)
             segments = data.get('segment_timestamps', [])
@@ -105,7 +107,8 @@ class SimpleASRService:
                     "audio_duration": data.get('audio_duration', 0),
                     "word_count": data.get('word_count', 0),
                     "model_used": data.get('model', 'nvidia/parakeet-tdt-0.6b-v3'),
-                    "device_used": data.get('device', 'unknown')
+                    "device_used": data.get('device', 'unknown'),
+                    "tier_used": tier_used
                 }
             }
             

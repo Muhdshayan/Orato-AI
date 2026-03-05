@@ -13,9 +13,9 @@ sudo docker start oratoaidb >/dev/null 2>&1 || sudo docker run --name oratoaidb 
 sudo docker start minio >/dev/null 2>&1 || sudo docker run -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=MINIO_ACCESS -e MINIO_ROOT_PASSWORD=MINIO_SECRET -v "$(pwd)/minio-data":/data --name minio -d minio/minio server /data --console-address ":9001" >/dev/null
 
 # 2. Start Backend
-echo "[2/3] Starting FastAPI Backend..."
+echo "[2/3] Starting FastAPI Backend (Logs will print below)..."
 cd backend
-../venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 > backend.log 2>&1 &
+../venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 | tee backend.log &
 BACKEND_PID=$!
 cd ..
 echo $BACKEND_PID > .backend.pid

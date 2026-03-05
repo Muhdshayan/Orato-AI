@@ -31,7 +31,7 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Error:', error);
-    
+
     if (error.response) {
       // Server responded with error status
       const message = error.response.data?.detail || error.response.data?.message || 'An error occurred';
@@ -95,7 +95,7 @@ export const videoAPI = {
       },
       timeout: 120000, // 2 minutes timeout for video uploads
     });
-    
+
     return response.data;
   },
 
@@ -128,7 +128,10 @@ export const videoAPI = {
 export const transcriptAPI = {
   // Trigger transcription generation
   generate: async (submissionId) => {
-    const response = await api.post(`/api/v1/transcripts/${submissionId}/generate`);
+    // Increase timeout to 5 minutes for model cold starts (Modal/HF)
+    const response = await api.post(`/api/v1/transcripts/${submissionId}/generate`, null, {
+      timeout: 300000
+    });
     return response.data;
   },
   // Get full transcript with timestamps

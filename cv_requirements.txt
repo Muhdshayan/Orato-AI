@@ -4,7 +4,7 @@
 
 # Core CV and pose estimation
 opencv-python>=4.8.0
-mediapipe>=0.10.0,<0.11.0
+mediapipe>=0.10.0,<0.10.15
 
 # Numerical computing
 numpy>=1.24.0,<2.0.0

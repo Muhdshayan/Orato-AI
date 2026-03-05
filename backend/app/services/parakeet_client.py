@@ -9,6 +9,8 @@ import socket
 import subprocess
 import time
 import traceback
+import requests
+from gradio_client import Client, file
 from typing import Dict, Any
 
 
@@ -77,9 +79,53 @@ class ParakeetClient:
             self._server_available = False
             return False
     
+    def _transcribe_via_modal(self, audio_path: str) -> Dict[str, Any]:
+        """Transcribe using the Modal GPU API (Tier 1)"""
+        print(f"🚀 [Tier 1: Modal API] Attempting transcription for {os.path.basename(audio_path)}")
+        url = "https://ali0346--orato-ai-parakeet-asr-api-transcribe.modal.run"
+        
+        with open(audio_path, 'rb') as f:
+            files = {'file': (os.path.basename(audio_path), f, 'audio/wav')}
+            # Use a long timeout to account for cold starts (e.g. 5 mins)
+            response = requests.post(url, files=files, timeout=300)
+            
+        response.raise_for_status()
+        result = response.json()
+        
+        if not result.get('success'):
+            raise Exception(result.get('error', 'Unknown error from Modal API'))
+            
+        print(f"✅ [Tier 1: Modal API] Transcription successful")
+        result['tier_used'] = 'Modal API (Cloud GPU)'
+        return result
+
+    def _transcribe_via_hf(self, audio_path: str) -> Dict[str, Any]:
+        """Transcribe using the HuggingFace Space API (Tier 2)"""
+        print(f"🚀 [Tier 2: HF API] Attempting transcription for {os.path.basename(audio_path)}")
+        space_id = "Ali428/ParakeetTranscriptionModel"
+        
+        client = Client(space_id)
+        # The HF API returns a JSON string, we need to parse it
+        result_str = client.predict(
+            audio_path=file(audio_path),
+            api_name="/transcribe"
+        )
+        
+        result = json.loads(result_str)
+        
+        if not result.get('success'):
+            raise Exception(result.get('error', 'Unknown error from HF API'))
+            
+        print(f"✅ [Tier 2: HF API] Transcription successful")
+        result['tier_used'] = 'HuggingFace API (Cloud CPU)'
+        return result
+
     def transcribe(self, audio_path: str) -> Dict[str, Any]:
         """
-        Transcribe audio using model server, or fallback to subprocess.
+        Transcribe audio using a 3-tier fallback strategy:
+        1. Modal API (Dedicated GPU, precise timestamps)
+        2. HuggingFace API (CPU/ZeroGPU fallback)
+        3. Local Model (Local GPU/CPU)
         
         Args:
             audio_path: Path to audio file
@@ -87,16 +133,42 @@ class ParakeetClient:
         Returns:
             Transcription result dictionary
         """
-        # Try model server first
+        if not os.path.exists(audio_path):
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
+
+        print("\n" + "="*50)
+        print(f"🎙️ STARTING ASR: {os.path.basename(audio_path)}")
+        
+        # TIER 1: Try Modal API (Fastest, best timestamps)
+        try:
+            return self._transcribe_via_modal(audio_path)
+        except Exception as e:
+            print(f"⚠️ [Modal API] Failed: {e}. Falling back to Tier 2 (HuggingFace API)...")
+            
+        # TIER 2: Try HuggingFace API (Secondary Cloud Fallback)
+        try:
+            return self._transcribe_via_hf(audio_path)
+        except Exception as e:
+            print(f"⚠️ [HF API] Failed: {e}. Falling back to Tier 3 (Local Model)...")
+
+        # TIER 3: Local Model Server
+        print(f"🚀 [Tier 3: Local Model] Attempting transcription via local model server")
         if self._check_server_available():
             try:
-                return self._transcribe_via_server(audio_path)
+                result = self._transcribe_via_server(audio_path)
+                print(f"✅ [Tier 3: Local Server] Transcription successful")
+                result['tier_used'] = 'Local Server'
+                return result
             except Exception as e:
-                print(f"⚠️ Model server transcription failed: {e}, falling back to subprocess", file=sys.stderr)
-                # Fall through to subprocess fallback
+                print(f"⚠️ [Local Server] Failed: {e}. Falling back to Local Subprocess...")
         
-        # Fallback to subprocess
-        return self._transcribe_via_subprocess(audio_path)
+        # TIER 4: Local Subprocess (Final fallback)
+        print(f"🚀 [Tier 3: Local Subprocess] Attempting raw subprocess transcription")
+        result = self._transcribe_via_subprocess(audio_path)
+        print(f"✅ [Tier 3: Local Subprocess] Transcription successful")
+        result['tier_used'] = 'Local Subprocess'
+        print("="*50 + "\n")
+        return result
     
     def _transcribe_via_server(self, audio_path: str) -> Dict[str, Any]:
         """Transcribe using model server via socket"""

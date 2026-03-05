@@ -1,3 +1,7 @@
+.backend.pid
+.frontend.pid
+.asr.pid
+
 # Python Virtual Environments
 venv/
 venv_asr/
