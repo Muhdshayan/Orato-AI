@@ -52,7 +52,7 @@ def transcribe_audio(audio_path: str):
     try:
         # Set HuggingFace cache to project directory (models will be stored here)
         # File is in backend/app/services/, so go up 4 levels to project root
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         hf_cache = os.path.join(project_root, '.cache', 'huggingface')
         temp_dir = os.path.join(project_root, '.cache', 'temp')
         

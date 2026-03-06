@@ -13,7 +13,7 @@ from app.services.minio_service import MinIOService
 
 # Import the CV Engine
 try:
-    from app.services.cv_engine.body_language_analyzer import analyze_video
+    from python_modules.cv.body_language_analyzer import analyze_video
     CV_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️ CV Engine not available: {e}")

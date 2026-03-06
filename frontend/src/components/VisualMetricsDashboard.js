@@ -16,7 +16,7 @@ import {
 } from 'chart.js';
 
 ChartJS.register(
-  RadialLinearScale, CategoryScale, LinearScale, BarElement, 
+  RadialLinearScale, CategoryScale, LinearScale, BarElement,
   PointElement, LineElement, Filler, Tooltip, Legend
 );
 
@@ -25,8 +25,8 @@ ChartJS.defaults.color = '#94A3B8';
 ChartJS.defaults.borderColor = 'rgba(255,255,255,0.1)';
 
 const KPI = ({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }) => (
-  <motion.div 
-    className="card" 
+  <motion.div
+    className="card"
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: delay }}
@@ -45,24 +45,24 @@ const KPI = ({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }) 
 const FeedbackItem = ({ category, severity, message, index }) => {
   const borderColors = {
     success: '#34d399',
-    warning: '#fbbf24', 
+    warning: '#fbbf24',
     error: '#f87171',
     info: '#60a5fa'
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.1 }}
-      style={{ 
-        display: 'flex', 
-        gap: 16, 
-        padding: '16px', 
-        marginBottom: '12px', 
-        background: 'rgba(255,255,255,0.02)', 
-        borderRadius: '12px', 
-        borderLeft: `4px solid ${borderColors[severity] || '#60a5fa'}` 
+      style={{
+        display: 'flex',
+        gap: 16,
+        padding: '16px',
+        marginBottom: '12px',
+        background: 'rgba(255,255,255,0.02)',
+        borderRadius: '12px',
+        borderLeft: `4px solid ${borderColors[severity] || '#60a5fa'}`
       }}
     >
       <div>
@@ -102,7 +102,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
   // --- 1. Radar Chart Data (Normalized to 0-100) ---
   const radarData = useMemo(() => {
     if (!data || !data.individual_scores) return null;
-    
+
     // Helper to safely get score or default to 0
     const scores = data.individual_scores;
 
@@ -112,21 +112,21 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         label: 'Performance Score',
         data: [
           // 1. Posture: Already 0-100
-          scores.cca_score || 0, 
-          
+          scores.cca_score || 0,
+
           // 2. Eye Contact: Already 0-100 (if it's percentage)
           // CHECK: If your JSON sends 0.88 for 88%, multiply by 100. 
           // Based on your JSON, 'eye_contact_score' is ~11.3, so it's likely already scaled 0-100.
           scores.eye_contact_score || 0,
-          
+
           // 3. Gestures: This was likely the issue. 
           // If GPM is raw (e.g., 60), it fits. If it's a score (0-1), it needs scaling.
           // Assuming 'gpm_score' is the calculated 0-100 score from your backend.
           scores.gpm_score || 0,
-          
+
           // 4. Stability: Already 0-100
           scores.slouch_score || 0,
-          
+
           // 5. Hand Visibility: Already 0-100
           scores.hand_visibility_score || 0
         ],
@@ -186,7 +186,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       datasets: [
         {
           label: 'Neck Flexion',
-          data: data.time_series.neck_flexion_angles || [], 
+          data: data.time_series.neck_flexion_angles || [],
           borderColor: '#8b5cf6', // Violet
           borderWidth: 2,
           pointRadius: 0,
@@ -206,24 +206,24 @@ const VisualMetricsDashboard = ({ submissionId }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-      
+
       {/* Top Section: Score & Radar */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
-        <motion.div 
-          className="card" 
+        <motion.div
+          className="card"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
         >
           <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>VISUAL IMPACT SCORE</h3>
-          <div style={{ 
+          <div style={{
             fontSize: '6rem', fontWeight: 800, lineHeight: 1,
             color: 'var(--accent-gold)', margin: '20px 0'
           }}>
             {score.toFixed(0)}
           </div>
-          <div style={{ 
-            padding: '8px 16px', background: 'rgba(255,255,255,0.05)', 
+          <div style={{
+            padding: '8px 16px', background: 'rgba(255,255,255,0.05)',
             borderRadius: '20px', border: '1px solid var(--glass-border)',
             color: 'var(--text-main)', fontWeight: 600
           }}>
@@ -231,7 +231,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="card"
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -246,62 +246,62 @@ const VisualMetricsDashboard = ({ submissionId }) => {
 
       {/* Row 2: Standard KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
-        <KPI 
-          label="Eye Contact" 
-          value={data.head_pose?.eye_contact_percentage?.toFixed(1)} 
-          suffix="%" 
+        <KPI
+          label="Eye Contact"
+          value={data.head_pose?.eye_contact_percentage?.toFixed(1)}
+          suffix="%"
           delay={0.1}
         />
-        <KPI 
-          label="Hand Usage" 
-          value={data.gestures?.hand_visibility?.any_hand_percentage?.toFixed(0)} 
-          suffix="%" 
+        <KPI
+          label="Hand Usage"
+          value={data.gestures?.hand_visibility?.any_hand_percentage?.toFixed(0)}
+          suffix="%"
           color="#fb923c"
           delay={0.15}
         />
-        <KPI 
-          label="Gestures/Min" 
-          value={data.gestures?.gesture_frequency?.gestures_per_minute?.toFixed(1)} 
-          suffix="" 
+        <KPI
+          label="Gestures/Min"
+          value={data.gestures?.gesture_frequency?.gestures_per_minute?.toFixed(1)}
+          suffix=""
           delay={0.2}
         />
-        <KPI 
-          label="Slouching" 
-          value={data.posture?.slouch_duration?.slouch_percentage?.toFixed(1)} 
-          suffix="%" 
-          color={data.posture?.slouch_duration?.slouch_percentage > 10 ? '#f87171' : '#34d399'} 
+        <KPI
+          label="Slouching"
+          value={data.posture?.slouch_duration?.slouch_percentage?.toFixed(1)}
+          suffix="%"
+          color={data.posture?.slouch_duration?.slouch_percentage > 10 ? '#f87171' : '#34d399'}
           delay={0.25}
         />
       </div>
 
       {/* Row 3: Advanced Numerics (NEW ADDITION) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
-        <KPI 
-          label="Head Pitch (Nodding)" 
-          value={Math.abs(data.head_pose?.pitch?.mean || 0).toFixed(1)} 
-          suffix="°" 
+        <KPI
+          label="Head Pitch (Nodding)"
+          value={Math.abs(data.head_pose?.pitch?.mean || 0).toFixed(1)}
+          suffix="°"
           color="#a78bfa"
           delay={0.3}
         />
-        <KPI 
-          label="Head Yaw (Turning)" 
-          value={Math.abs(data.head_pose?.yaw?.mean || 0).toFixed(1)} 
-          suffix="°" 
+        <KPI
+          label="Head Yaw (Turning)"
+          value={Math.abs(data.head_pose?.yaw?.mean || 0).toFixed(1)}
+          suffix="°"
           color="#a78bfa"
           delay={0.35}
         />
-        <KPI 
-          label="Motion Energy" 
-          value={data.motion_energy?.burstiness_metrics?.burstiness?.toFixed(2)} 
-          suffix="" 
+        <KPI
+          label="Motion Energy"
+          value={data.motion_energy?.burstiness_metrics?.burstiness?.toFixed(2)}
+          suffix=""
           color="#22d3ee"
           delay={0.4}
         />
-        <KPI 
-          label="Smoothness (NJC)" 
-          value={((data.gestures?.motion_smoothness?.mean_njc || 0)).toFixed(1)} 
-          suffix="M" 
-          color="#f472b6" 
+        <KPI
+          label="Smoothness (NJC)"
+          value={((data.gestures?.motion_smoothness?.mean_njc || 0)).toFixed(1)}
+          suffix="M"
+          color="#f472b6"
           delay={0.45}
         />
       </div>
@@ -310,7 +310,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>
         {/* Posture Stability Graph */}
         {postureTimelineData && (
-          <motion.div 
+          <motion.div
             className="card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -328,7 +328,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
 
         {/* Neck Flexion Graph */}
         {neckFlexionData && (
-          <motion.div 
+          <motion.div
             className="card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}

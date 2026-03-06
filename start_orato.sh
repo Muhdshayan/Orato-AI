@@ -15,7 +15,7 @@ sudo docker start minio >/dev/null 2>&1 || sudo docker run -p 9000:9000 -p 9001:
 # 2. Start Backend
 echo "[2/3] Starting FastAPI Backend (Logs will print below)..."
 cd backend
-../venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 | tee backend.log &
+PYTHONPATH=$PYTHONPATH:/home/ali/Desktop/Orato-AI ../venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 | tee backend.log &
 BACKEND_PID=$!
 cd ..
 echo $BACKEND_PID > .backend.pid

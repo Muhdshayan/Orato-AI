@@ -19,7 +19,7 @@ class ParakeetClient:
     
     def __init__(self):
         # Get project root
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         
         # Server connection details
         if sys.platform == 'win32':

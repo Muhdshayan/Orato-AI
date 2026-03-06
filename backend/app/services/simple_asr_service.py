@@ -49,7 +49,7 @@ class SimpleASRService:
             self.python_exe = os.path.join(venv_path, 'bin', 'python')
         # --- CHANGE ENDS HERE ---
 
-        self.script_path = os.path.join(services_dir, 'transcribe_with_parakeet.py')
+        self.script_path = os.path.join(project_root, 'python_modules', 'nlp_asr', 'transcribe_with_parakeet.py')
         
         # Load Google Speech Recognition as fallback
         try:
@@ -84,7 +84,7 @@ class SimpleASRService:
             print(f"🎤 Attempting Parakeet transcription: {os.path.basename(audio_path)}")
             
             # Use Parakeet client (tries model server first, falls back to subprocess)
-            from app.services.parakeet_client import parakeet_client
+            from python_modules.nlp_asr.parakeet_client import parakeet_client
             data = parakeet_client.transcribe(audio_path)
             
             if not data.get('success'):

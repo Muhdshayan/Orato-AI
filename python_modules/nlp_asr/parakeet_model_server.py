@@ -33,7 +33,7 @@ class ParakeetModelServer:
     def _setup_environment(self):
         """Setup cache and temp directories"""
         # Get project root (this file is in backend/app/services/)
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         hf_cache = os.path.join(project_root, '.cache', 'huggingface')
         temp_dir = os.path.join(project_root, '.cache', 'temp')
         nemo_cache = os.path.join(project_root, '.cache', 'nemo_models')
@@ -83,7 +83,7 @@ class ParakeetModelServer:
             print(f"Device: {self.device}", file=sys.stderr)
             
             # Try to load from local cache first to avoid network requests
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             hf_cache = os.path.join(project_root, '.cache', 'huggingface')
             
             # Look for the model file in HuggingFace cache
@@ -137,7 +137,7 @@ class ParakeetModelServer:
             duration = len(audio) / sr
             
             # Save as temporary mono WAV file
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             temp_dir = os.path.join(project_root, '.cache', 'temp')
             os.makedirs(temp_dir, exist_ok=True)
             
@@ -341,7 +341,7 @@ class ParakeetModelServer:
 def start_model_server():
     """Entry point to start the model server"""
     # Get project root
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     
     # Socket path
     if sys.platform == 'win32':

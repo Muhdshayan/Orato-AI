@@ -6,9 +6,9 @@ from typing import Dict, Any, Optional, List
 import json
 import math
 from app.core.database import execute_query
-from app.services.filler_word_service import filler_word_service
-from app.services.pause_detection_service import pause_detection_service
-from app.services.speech_rate_service import speech_rate_service
+from python_modules.nlp_asr.filler_word_service import filler_word_service
+from python_modules.nlp_asr.pause_detection_service import pause_detection_service
+from python_modules.nlp_asr.speech_rate_service import speech_rate_service
 
 class SpeechMetricsService:
     """Service for analyzing and storing speech quality metrics"""

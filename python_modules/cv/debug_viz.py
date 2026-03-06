@@ -80,54 +80,6 @@ def save_debug_frame(video_path: str, frame_idx: int, frame_data: Dict,
                 x, y = int(lm['x'] * w), int(lm['y'] * h)
                 cv2.circle(frame, (x, y), 4, (0, 0, 255), -1)
     
-    # Draw anatomical points if available
-    if anatomical_points:
-        # C7 vertebra
-        if 'c7' in anatomical_points:
-            c7 = anatomical_points['c7']
-            x, y = int(c7['x'] * w), int(c7['y'] * h)
-            cv2.circle(frame, (x, y), 8, (255, 0, 255), -1)
-            cv2.putText(frame, 'C7', (x+10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 2)
-        
-        # Body centroid
-        if 'body_centroid' in anatomical_points:
-            bc = anatomical_points['body_centroid']
-            x, y = int(bc['x'] * w), int(bc['y'] * h)
-            cv2.circle(frame, (x, y), 8, (255, 255, 0), -1)
-            cv2.putText(frame, 'Centroid', (x+10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 2)
-    
-    # Add text overlay with metrics
-    overlay = np.zeros_like(frame)
-    cv2.rectangle(overlay, (10, 10), (400, 180), (0, 0, 0), -1)
-    frame = cv2.addWeighted(frame, 1.0, overlay, 0.6, 0)
-    
-    y_offset = 35
-    cv2.putText(frame, f"Frame: {frame_idx} | Time: {frame_data['timestamp']:.2f}s", 
-                (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-    y_offset += 30
-    
-    if cca is not None:
-        color = (0, 255, 0) if 48 <= cca <= 55 else (0, 165, 255)  # Green if good, orange if bad
-        cv2.putText(frame, f"CCA: {cca:.1f}deg (target: 48-55)", 
-                    (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
-        y_offset += 25
-    
-    if flexion is not None:
-        color = (0, 255, 0) if flexion <= 15 else (0, 165, 255)
-        cv2.putText(frame, f"Neck Flexion: {flexion:.1f}deg (target: <15)", 
-                    (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.55, color, 2)
-        y_offset += 25
-    
-    if centroid_x is not None:
-        cv2.putText(frame, f"Centroid: ({centroid_x:.3f}, {centroid_y:.3f})", 
-                    (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
-        y_offset += 25
-    
-    pose_status = "DETECTED" if (landmarks and len(landmarks) > 0) else "NOT DETECTED"
-    status_color = (0, 255, 0) if landmarks else (0, 0, 255)
-    cv2.putText(frame, f"Pose: {pose_status}", 
-                (20, y_offset), cv2.FONT_HERSHEY_SIMPLEX, 0.55, status_color, 2)
-    
-    # Save frame
+    # Save frame (without text annotations)
     output_path = output_dir / f"frame_{frame_idx:05d}.jpg"
     cv2.imwrite(str(output_path), frame)

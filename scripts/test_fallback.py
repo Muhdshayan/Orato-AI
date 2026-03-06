@@ -1,12 +1,11 @@
 import os
 import sys
 
-# Add backend directory to sys.path so we can import app modules
+# Add project root to sys.path so we can import python_modules
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-backend_dir = os.path.join(project_root, 'backend')
-sys.path.append(backend_dir)
+sys.path.append(project_root)
 
-from app.services.parakeet_client import parakeet_client
+from python_modules.nlp_asr.parakeet_client import parakeet_client
 
 def override_urls_to_fail():
     """

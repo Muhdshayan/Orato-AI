@@ -92,7 +92,9 @@ SPATIAL_EXTENT_MAX_NORMALIZED = 0.7  # 70% of frame diagonal
 
 # Gesture Velocity - for segmenting gestures
 # Peak velocity threshold (pixels per second, resolution-dependent)
-VELOCITY_PEAK_THRESHOLD_MULTIPLIER = 2.0  # 2x mean velocity
+# Gesture detection thresholds
+VELOCITY_PEAK_THRESHOLD_MULTIPLIER = 4.0  # Increased from 2.0 to reduce false positives
+# Only count movements >4x mean velocity as gestures (more stringent)
 
 # Motion Smoothness - Normalized Jerk Cost (NJC)
 # Research: Lower = smoother, more controlled

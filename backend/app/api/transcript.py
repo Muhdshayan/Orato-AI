@@ -386,7 +386,7 @@ async def get_speech_metrics(submission_id: str):
         
         # Get speech metrics
         from app.services.speech_metrics_service import speech_metrics_service
-        from app.services.speech_rate_service import speech_rate_service
+        from python_modules.nlp_asr.speech_rate_service import speech_rate_service
         metrics = speech_metrics_service.get_speech_metrics(transcript_id)
         
         if not metrics:
