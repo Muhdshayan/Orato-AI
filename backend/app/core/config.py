@@ -30,6 +30,7 @@ class Settings(BaseSettings):
         """Pydantic config for environment variable loading"""
         env_file = "config.env"  # Load from config.env file
         case_sensitive = True  # Case sensitive environment variables
+        extra = "ignore"  # Allow extra env vars (e.g. content relevance keys)
 
 # Create global settings instance
 settings = Settings()

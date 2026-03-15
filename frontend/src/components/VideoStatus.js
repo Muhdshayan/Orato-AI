@@ -3,8 +3,11 @@
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
-import { AlertCircle, FileText, CheckCircle2, Clock, Zap, ArrowRight } from "lucide-react"
+import { AlertCircle, FileText, CheckCircle2, Clock, Zap, ArrowRight, BookOpen } from "lucide-react"
 import { videoAPI, transcriptAPI } from "../services/api"
+import api from "../services/api"
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const VideoStatus = () => {
   const { submissionId } = useParams()
@@ -17,6 +20,8 @@ const VideoStatus = () => {
   const [isTranscribing, setIsTranscribing] = useState(false)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [metricsStatus, setMetricsStatus] = useState(null)
+  const [crStatus, setCrStatus] = useState(null)        // content relevance
+  const [isAnalyzingCR, setIsAnalyzingCR] = useState(false)
 
   // Fetch logic
   const fetchData = useCallback(async () => {
@@ -35,6 +40,14 @@ const VideoStatus = () => {
         setMetricsStatus(m)
       } catch {
         setMetricsStatus(null)
+      }
+
+      // Check content relevance silently
+      try {
+        const cr = await api.get(`/api/v1/content-relevance/submission/${submissionId}`)
+        setCrStatus({ status: 'completed', data: cr.data })
+      } catch {
+        setCrStatus(null)
       }
     } catch (error) {
       toast.error(`Sync Error: ${error.message}`)
@@ -80,6 +93,56 @@ const VideoStatus = () => {
     }
   }
 
+  const handleAnalyzeCR = async () => {
+    try {
+      setIsAnalyzingCR(true)
+      toast.loading("Analyzing Content Relevance...", { id: 'cr' })
+      // Backend analysis can exceed default Axios timeout (30s).
+      // Keep button disabled and poll until the DB row is visible.
+      try {
+        await api.post(
+          `/api/v1/content-relevance/submission/${submissionId}/analyze?force=true`,
+          null,
+          { timeout: 300000 } // allow long-running analysis request
+        )
+      } catch (e) {
+        // If request times out/network hiccups, backend may still be processing.
+        const isTimeout = String(e?.message || "").toLowerCase().includes("timeout")
+        const isNetwork = String(e?.message || "").toLowerCase().includes("network")
+        if (!isTimeout && !isNetwork) throw e
+      }
+
+      // Wait until content relevance is actually saved and retrievable.
+      const maxWaitMs = 8 * 60 * 1000
+      const pollEveryMs = 4000
+      const startedAt = Date.now()
+      let saved = false
+
+      while (Date.now() - startedAt < maxWaitMs) {
+        try {
+          const cr = await api.get(`/api/v1/content-relevance/submission/${submissionId}`)
+          setCrStatus({ status: 'completed', data: cr.data })
+          saved = true
+          break
+        } catch {
+          // not saved yet
+        }
+        await sleep(pollEveryMs)
+      }
+
+      if (!saved) {
+        throw new Error("Content relevance is still processing. Please wait a bit and refresh.")
+      }
+
+      toast.success("Content Relevance Complete", { id: 'cr' })
+      fetchData()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || e.message, { id: 'cr' })
+    } finally {
+      setIsAnalyzingCR(false)
+    }
+  }
+
   if (isLoading) return <div className="card p-4 text-center"><div className="spinner"></div><p>Synchronizing...</p></div>
 
   if (!status) return (
@@ -95,6 +158,7 @@ const VideoStatus = () => {
   // Determine State
   const videoDone = status.status === "completed"
   const transDone = transcriptStatus?.status === "completed"
+  const crDone = crStatus?.status === "completed"
   const metricsDone = metricsStatus?.status === "completed"
 
   return (
@@ -153,11 +217,35 @@ const VideoStatus = () => {
           </div>
         </div>
 
-        {/* Step 3: Analytics */}
+        {/* Step 3: Content Relevance */}
         <div style={{ 
           display: 'flex', gap: 24, marginBottom: 40, padding: 24,
           background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
-          opacity: metricsDone ? 1 : (transDone ? 1 : 0.3)
+          opacity: crDone ? 1 : (transDone ? 1 : 0.3)
+        }}>
+          <div style={{ color: crDone ? 'var(--success)' : 'var(--text-muted)' }}>
+            {crDone ? <CheckCircle2 size={32} /> : <BookOpen size={32} />}
+          </div>
+          <div style={{ flex: 1 }}>
+            <h3>Content Relevance</h3>
+            <p className="text-muted">Analyze topic match, factual accuracy, and off-topic segments.</p>
+            
+            {!crDone && transDone && (
+              <div style={{ marginTop: '16px' }}>
+                <button className="btn btn-primary" onClick={handleAnalyzeCR} disabled={isAnalyzingCR}>
+                  {isAnalyzingCR ? "Analyzing..." : "Analyze Content"}
+                </button>
+              </div>
+            )}
+            {crDone && <div style={{ marginTop: 8, fontSize: '0.9rem', color: 'var(--success)' }}>Complete</div>}
+          </div>
+        </div>
+
+        {/* Step 4: Analytics */}
+        <div style={{ 
+          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
+          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
+          opacity: metricsDone ? 1 : (crDone ? 1 : 0.3)
         }}>
           <div style={{ color: metricsDone ? 'var(--success)' : 'var(--text-muted)' }}>
             {metricsDone ? <CheckCircle2 size={32} /> : <Zap size={32} />}
@@ -166,7 +254,7 @@ const VideoStatus = () => {
             <h3>Insight Generation</h3>
             <p className="text-muted">Compute speech pace, fillers, and visual biometrics.</p>
             
-            {!metricsDone && transDone && (
+            {!metricsDone && crDone && (
               <div style={{ marginTop: '16px' }}>
                 <button className="btn btn-primary" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
                   {isAnalyzing ? "Processing..." : "Generate Analytics"}
@@ -174,7 +262,7 @@ const VideoStatus = () => {
               </div>
             )}
             
-            {metricsDone && (
+            {metricsDone && crDone && (
               <div style={{ marginTop: '16px' }}>
                 <button className="btn btn-primary" onClick={() => navigate(`/dashboard/${submissionId}`)}>
                   View Report <ArrowRight size={16} />
