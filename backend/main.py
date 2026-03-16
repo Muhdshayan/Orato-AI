@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.video import router as video_router
 from app.api.users import router as users_router
 from app.api.transcript import router as transcript_router
+from app.api.content_relevance import router as content_relevance_router
 from app.core.config import settings
 
 # Create FastAPI instance with metadata
@@ -40,6 +41,12 @@ app.include_router(
     transcript_router,
     prefix="/api/v1/transcripts",
     tags=["transcripts"]
+)
+
+app.include_router(
+    content_relevance_router,
+    prefix="/api/v1/content-relevance",
+    tags=["Content Relevance"],
 )
 
 # Root endpoint - basic health check
@@ -117,6 +124,12 @@ async def startup_event():
     
     print("🚀 OratoAI API started successfully!")
 
+from app.api.content_relevance import router as content_relevance_router
+app.include_router(
+    content_relevance_router,
+    prefix="/api/v1/content-relevance",
+    tags=["Content Relevance"],
+)
 # Shutdown event - runs when app stops
 @app.on_event("shutdown")
 async def shutdown_event():

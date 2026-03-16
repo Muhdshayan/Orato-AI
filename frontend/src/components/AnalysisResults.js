@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import MetricsDashboard from './MetricsDashboard';
 import VisualMetricsDashboard from './VisualMetricsDashboard';
 import TranscriptView from './TranscriptView';
-import { Mic, Eye, FileText } from 'lucide-react';
+import { ContentRelevanceDashboard } from './ContentRelevanceDashboard';
+import { Mic, Eye, FileText, BookOpen } from 'lucide-react';
 
 const AnalysisResults = () => {
   const { submissionId } = useParams();
@@ -14,6 +15,7 @@ const AnalysisResults = () => {
     { id: 'visual', label: 'Body Language', icon: Eye },
     { id: 'speech', label: 'Speech Patterns', icon: Mic },
     { id: 'transcript', label: 'Transcript', icon: FileText },
+    { id: 'content', label: 'Content Relevance', icon: BookOpen },
   ];
 
   return (
@@ -88,6 +90,7 @@ const AnalysisResults = () => {
           {activeTab === 'speech' && <MetricsDashboard />}
           {activeTab === 'visual' && <VisualMetricsDashboard submissionId={submissionId} />}
           {activeTab === 'transcript' && <TranscriptView />}
+          {activeTab === 'content' && <ContentRelevanceDashboard submissionId={submissionId} />}
         </motion.div>
       </AnimatePresence>
     </div>

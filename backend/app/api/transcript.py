@@ -124,7 +124,7 @@ async def generate_transcript(submission_id: str):
         if not minio.file_exists(audio_object):
             raise HTTPException(status_code=404, detail="Derived audio not found for this submission")
 
-        # Check if transcription already exists
+        # Check if transcription already exists (COMPLETED)
         existing = asr_service.get_transcript(submission_id)
         if existing:
             return {
@@ -134,8 +134,26 @@ async def generate_transcript(submission_id: str):
                 "message": "Transcript already exists"
             }
 
-        # Create processing job record
+        # Check if transcription is already PROCESSING or QUEUED (prevent duplicate jobs)
         from app.core.database import execute_query
+        in_progress = execute_query(
+            """
+            SELECT job_id, status FROM processing_jobs
+            WHERE submission_id = %s AND status IN ('PROCESSING', 'QUEUED')
+            ORDER BY enqueued_at DESC LIMIT 1
+            """,
+            (submission_id,),
+            fetch_one=True
+        )
+        if in_progress:
+            return {
+                "submission_id": submission_id, 
+                "status": in_progress["status"].lower(),
+                "job_id": in_progress["job_id"],
+                "message": f"Transcription already {in_progress['status'].lower()}"
+            }
+
+        # Create processing job record
         import uuid
         job_id = str(uuid.uuid4())
         execute_query(

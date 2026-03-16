@@ -10,7 +10,6 @@ import subprocess
 import time
 import traceback
 import requests
-from gradio_client import Client, file
 from typing import Dict, Any
 
 
@@ -101,6 +100,7 @@ class ParakeetClient:
 
     def _transcribe_via_hf(self, audio_path: str) -> Dict[str, Any]:
         """Transcribe using the HuggingFace Space API (Tier 2)"""
+        from gradio_client import Client, file
         print(f"🚀 [Tier 2: HF API] Attempting transcription for {os.path.basename(audio_path)}")
         space_id = "Ali428/ParakeetTranscriptionModel"
         
