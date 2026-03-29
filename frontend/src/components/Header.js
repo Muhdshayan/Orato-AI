@@ -1,8 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, User, LogOut } from 'lucide-react';
+import { Bot, User, LogOut, SunMedium, MoonStar } from 'lucide-react';
 
-const Header = ({ user, onSignOut }) => {
+const Header = ({ user, onSignOut, theme = 'dark', onToggleTheme }) => {
   return (
     <header style={{ 
       borderBottom: '1px solid var(--border)', 
@@ -47,6 +47,28 @@ const Header = ({ user, onSignOut }) => {
             </div>
             
             <div style={{ width: '1px', height: '24px', background: 'var(--border)' }}></div>
+
+            {onToggleTheme && (
+              <button
+                onClick={onToggleTheme}
+                title="Toggle theme"
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '10px'
+                }}
+              >
+                {theme === 'dark' ? <SunMedium size={18} /> : <MoonStar size={18} />}
+              </button>
+            )}
 
             <button 
               onClick={onSignOut}

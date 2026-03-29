@@ -1,8 +1,10 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { transcriptAPI } from '../services/api'; // Preserving your API import
-import { Radar, Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Radar, Line } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -23,10 +25,10 @@ ChartJS.register(
   PointElement, LineElement, ArcElement, Filler, Tooltip, Legend
 );
 
-// --- Chart Global Defaults (Dark Theme) ---
+// --- Chart Global Defaults (safe on canvas) ---
 ChartJS.defaults.color = '#94A3B8';
-ChartJS.defaults.borderColor = 'rgba(255,255,255,0.05)';
-ChartJS.defaults.font.family = '"Space Grotesk", sans-serif';
+ChartJS.defaults.borderColor = 'rgba(255,255,255,0.08)';
+ChartJS.defaults.font.family = '"Space Grotesk", "Inter", system-ui, sans-serif';
 
 // --- Helper: Dynamic Color Logic ---
 const getCategoryColor = (cat) => {
@@ -41,27 +43,28 @@ const getCategoryColor = (cat) => {
 };
 
 // --- Component: KPI Card ---
-const KPI = ({ label, value, suffix, category, emoji, delay = 0 }) => {
+const KPI = React.forwardRef(({ label, value, suffix, category, emoji, delay = 0 }, ref) => {
   const color = getCategoryColor(category);
 
   return (
     <motion.div
       className="card"
+      ref={ref}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: delay }}
       whileHover={{ y: -5, borderColor: color }}
       style={{
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        minHeight: '140px', background: 'rgba(255,255,255,0.02)',
-        borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(10px)'
+        minHeight: '140px', background: 'var(--panel)',
+        borderRadius: '16px', border: '1px solid var(--border)',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.12)'
       }}
     >
       <div style={{ color: '#9ca3af', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px', fontFamily: 'Space Grotesk' }}>
         {label}
       </div>
-      <div style={{ fontSize: '2.5rem', fontWeight: 700, color: 'white', lineHeight: 1, fontFamily: 'Space Grotesk' }}>
+      <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--ink)', lineHeight: 1, fontFamily: 'Space Grotesk' }}>
         {value}<span style={{ fontSize: '1.25rem', color: '#6b7280' }}>{suffix}</span>
       </div>
       {category && (
@@ -76,7 +79,8 @@ const KPI = ({ label, value, suffix, category, emoji, delay = 0 }) => {
       )}
     </motion.div>
   );
-};
+  });
+  KPI.displayName = 'KPI';
 
 // --- Component: Feedback Item ---
 const FeedbackItem = ({ category, severity, message, index }) => {
@@ -89,20 +93,20 @@ const FeedbackItem = ({ category, severity, message, index }) => {
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -20 }}
+      initial={{ opacity: 0, x: -16 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1 }}
+      transition={{ delay: index * 0.08 }}
       style={{
         display: 'flex', gap: 16, padding: '16px', marginBottom: '12px',
-        background: 'rgba(255,255,255,0.02)', borderRadius: '12px',
+        background: 'var(--panel)', borderRadius: '12px',
         borderLeft: `4px solid ${borderColors[severity] || '#60a5fa'}`
       }}
     >
       <div>
-        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: '#9ca3af', fontWeight: 700, marginBottom: '4px' }}>
+        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '4px' }}>
           {category}
         </div>
-        <div style={{ fontSize: '0.95rem', color: '#e5e7eb' }}>{message}</div>
+        <div style={{ fontSize: '0.95rem', color: 'var(--ink)' }}>{message}</div>
       </div>
     </motion.div>
   );
@@ -114,20 +118,31 @@ const MetricsDashboard = () => {
   const [metrics, setMetrics] = useState(null);
   const [transcriptData, setTranscriptData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [analysisPending, setAnalysisPending] = useState(false);
+  const containerRef = useRef(null);
+  const heroRef = useRef(null);
+  const scoreRef = useRef(null);
+  const radarRef = useRef(null);
+  const kpiRefs = useRef([]);
+  const paceRef = useRef(null);
+  const transcriptRef = useRef(null);
+  const insightsRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
     const fetchData = async () => {
       try {
         setLoading(true);
-        // We use your existing API service logic here
-        // Assuming transcriptAPI has methods that map to the endpoints you shared
-        const [metricsRes, transcriptRes] = await Promise.all([
-          // If these specific methods don't exist in your API helper yet, 
-          // you can use standard fetch('/api/transcript/...') as fallback
-          transcriptAPI.getSpeechMetrics(submissionId).catch(e => null),
-          transcriptAPI.getTranscript(submissionId).catch(e => null)
-        ]);
+        const transcriptRes = await transcriptAPI.getTranscript(submissionId).catch(() => null);
+        let metricsRes = await transcriptAPI.getSpeechMetrics(submissionId).catch(() => null);
+
+        // Auto-heal: if metrics are missing, trigger analysis and retry once.
+        if (!metricsRes || (!metricsRes.metrics && Object.keys(metricsRes || {}).length === 0)) {
+          setAnalysisPending(true);
+          await transcriptAPI.analyzeSpeech(submissionId).catch(() => null);
+          metricsRes = await transcriptAPI.getSpeechMetrics(submissionId).catch(() => null);
+          setAnalysisPending(false);
+        }
 
         if (isMounted) {
           if (metricsRes) setMetrics(metricsRes);
@@ -143,6 +158,35 @@ const MetricsDashboard = () => {
     if (submissionId) fetchData();
     return () => { isMounted = false; };
   }, [submissionId]);
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+    if (loading || !metrics) return;
+
+    const ctx = gsap.context(() => {
+      const base = { ease: 'power2.out', duration: 0.9 };
+      const tl = gsap.timeline({
+        defaults: base,
+        scrollTrigger: {
+          trigger: containerRef.current,
+          start: 'top 70%'
+        }
+      });
+
+      tl.from(heroRef.current, { y: 28, opacity: 0 })
+        .from(scoreRef.current, { scale: 0.9, opacity: 0 }, '-=0.2')
+        .from(radarRef.current, { y: 26, opacity: 0 }, '-=0.2')
+        .from(kpiRefs.current, { y: 18, opacity: 0, stagger: 0.08 }, '-=0.1')
+        .from(paceRef.current, { y: 28, opacity: 0 }, '-=0.05')
+        .from(transcriptRef.current, { y: 28, opacity: 0 }, '-=0.15');
+
+      if (insightsRef.current) {
+        tl.from(insightsRef.current, { y: 18, opacity: 0 }, '-=0.05');
+      }
+    }, containerRef);
+
+    return () => ctx.revert();
+  }, [loading, metrics]);
 
   // The backend wraps its response in a `metrics` key so we have metrics.metrics from the API
   const coreMetrics = metrics?.metrics || metrics;
@@ -197,20 +241,93 @@ const MetricsDashboard = () => {
     };
   }, [coreMetrics]);
 
+  const insights = useMemo(() => {
+    if (!coreMetrics) return [];
+    const arr = [];
+    if (coreMetrics.speech_rate) {
+      if (coreMetrics.speech_rate < 120) arr.push({ category: 'Pacing', severity: 'warning', message: 'Speaking pace is on the slow side. Aim for 130-150 wpm for most talks.' });
+      else if (coreMetrics.speech_rate > 170) arr.push({ category: 'Pacing', severity: 'warning', message: 'Pace is fast; add pauses to let points breathe.' });
+      else arr.push({ category: 'Pacing', severity: 'success', message: 'Pace sits in a comfortable range—keep it steady.' });
+    }
+    if (coreMetrics.filler_word_percentage !== undefined) {
+      if (coreMetrics.filler_word_percentage > 5) arr.push({ category: 'Clarity', severity: 'error', message: 'Filler usage is elevated; script transitions to reduce ums/ahs.' });
+      else arr.push({ category: 'Clarity', severity: 'success', message: 'Filler usage is low; keep concise phrasing.' });
+    }
+    if (coreMetrics.pause_percentage !== undefined) {
+      if (coreMetrics.pause_percentage > 20) arr.push({ category: 'Pauses', severity: 'info', message: 'High pause time—ensure pauses serve emphasis, not hesitation.' });
+      else arr.push({ category: 'Pauses', severity: 'success', message: 'Pause time is balanced; your rhythm feels controlled.' });
+    }
+    return arr;
+  }, [coreMetrics]);
+
   if (loading) return (
-    <div className="flex items-center justify-center h-screen bg-[#0f172a]">
-      <div className="text-blue-400 animate-pulse font-mono">Loading Speech Analysis...</div>
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
+      <div style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>Loading speech analysis…</div>
     </div>
   );
 
-  if (!metrics || !coreMetrics) return <div className="p-8 text-center text-gray-500">Metrics not available.</div>;
+  if (!metrics || !coreMetrics) {
+    return (
+      <div className="card" style={{ padding: 28, borderRadius: 18 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 8 }}>Speech metrics are not ready yet</h3>
+        <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>
+          This can happen on first run. Trigger analysis and reopen this tab.
+        </p>
+        <button
+          className="btn btn-primary"
+          onClick={async () => {
+            setAnalysisPending(true);
+            await transcriptAPI.analyzeSpeech(submissionId).catch(() => null);
+            const refreshed = await transcriptAPI.getSpeechMetrics(submissionId).catch(() => null);
+            if (refreshed) setMetrics(refreshed);
+            setAnalysisPending(false);
+          }}
+          disabled={analysisPending}
+        >
+          {analysisPending ? 'Running analysis...' : 'Run Speech Analysis'}
+        </button>
+      </div>
+    );
+  }
 
   // Safe destructuring based on your DB schema
   const pauseSummary = coreMetrics.pause_durations?.summary || {};
   const pausePct = coreMetrics.pause_percentage || pauseSummary.pause_percentage || 0;
 
+  const radarOptions = {
+    scales: {
+      r: {
+        ticks: { display: false },
+        grid: { color: 'rgba(255,255,255,0.08)' },
+        angleLines: { color: 'rgba(255,255,255,0.08)' },
+        suggestedMin: 0,
+        suggestedMax: 100
+      }
+    },
+    plugins: { legend: { display: false } }
+  };
+
+  const paceOptions = {
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' } },
+    scales: {
+      y: { grid: { color: 'rgba(255,255,255,0.08)' }, beginAtZero: true, ticks: { color: 'var(--text-muted)' } },
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', maxTicksLimit: 8 } }
+    }
+  };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '24px', fontFamily: '"Inter", sans-serif', background: '#0f172a', minHeight: '100vh', color: 'white' }}>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 24, padding: '28px 12px 80px', fontFamily: '"Inter", sans-serif' }}>
+
+      <div ref={heroRef} style={{ position: 'relative', padding: '24px', borderRadius: 20, background: 'linear-gradient(135deg, rgba(245,196,0,0.12), rgba(255,255,255,0.02))', border: '1px solid var(--border)', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), transparent 45%)', pointerEvents: 'none' }} />
+        <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="pill pill-gold" style={{ margin: 0 }}>Speech Analytics</span>
+          <span style={{ color: 'var(--text-muted)' }}>Session {submissionId}</span>
+        </div>
+        <h2 style={{ margin: '10px 0 6px', fontSize: '2rem', fontWeight: 800 }}>Delivery Quality</h2>
+        <p style={{ color: 'var(--text-muted)', margin: 0 }}>Fluency, pacing, pauses, and clarity distilled into a quick read.</p>
+      </div>
 
       {/* --- Row 1: Hero Section (Score & Radar) --- */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
@@ -218,26 +335,28 @@ const MetricsDashboard = () => {
         {/* Fluency Score Card */}
         <motion.div
           className="card"
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           style={{
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
-            background: 'linear-gradient(145deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%)',
-            borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', padding: '32px'
+            background: 'var(--panel)',
+            borderRadius: '24px', border: '1px solid var(--border)', padding: '32px', position: 'relative', overflow: 'hidden'
           }}
+          ref={scoreRef}
         >
-          <h3 style={{ color: '#9ca3af', fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Speech Fluency Score</h3>
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 10%, rgba(245,196,0,0.08), transparent 45%)', pointerEvents: 'none' }} />
+          <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Speech Fluency Score</h3>
           <div style={{
             fontSize: '6rem', fontWeight: 800, lineHeight: 1,
             color: getCategoryColor(coreMetrics.fluency_label || 'Fair'),
-            margin: '24px 0', textShadow: '0 0 30px rgba(0,0,0,0.3)'
+            margin: '24px 0'
           }}>
             {coreMetrics.fluency_score?.toFixed(0)}
           </div>
           <div style={{
             padding: '8px 24px', background: 'rgba(255,255,255,0.05)',
-            borderRadius: '30px', border: '1px solid rgba(255,255,255,0.1)',
-            color: 'white', fontWeight: 600, letterSpacing: '1px'
+            borderRadius: '30px', border: '1px solid rgba(255,255,255,0.08)',
+            color: 'var(--ink)', fontWeight: 700, letterSpacing: '1px'
           }}>
             {coreMetrics.fluency_label || 'PROCESSING'}
           </div>
@@ -250,13 +369,15 @@ const MetricsDashboard = () => {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
           style={{
-            background: 'rgba(255,255,255,0.02)', borderRadius: '24px', padding: '24px',
-            border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center'
+            background: 'var(--panel)', borderRadius: '24px', padding: '24px',
+            border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', overflow: 'hidden'
           }}
+          ref={radarRef}
         >
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), transparent 60%)', pointerEvents: 'none' }} />
           <h3 style={{ width: '100%', marginBottom: 20, fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Skill Balance</h3>
           <div style={{ height: '300px', width: '100%', display: 'flex', justifyContent: 'center' }}>
-            {radarData && <Radar data={radarData} options={{ scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.05)' } } }, plugins: { legend: { display: false } } }} />}
+            {radarData && <Radar data={radarData} options={radarOptions} />}
           </div>
         </motion.div>
       </div>
@@ -269,6 +390,7 @@ const MetricsDashboard = () => {
           suffix=" wpm"
           category={coreMetrics.speech_rate_label}
           emoji={coreMetrics.speech_rate_emoji}
+          ref={(el) => { kpiRefs.current[0] = el; }}
           delay={0.15}
         />
         <KPI
@@ -277,6 +399,7 @@ const MetricsDashboard = () => {
           suffix="%"
           category={coreMetrics.pause_percentage_label}
           emoji={coreMetrics.pause_percentage_emoji}
+          ref={(el) => { kpiRefs.current[1] = el; }}
           delay={0.2}
         />
         <KPI
@@ -285,6 +408,7 @@ const MetricsDashboard = () => {
           suffix=""
           category={coreMetrics.filler_word_percentage > 5 ? 'High Usage' : 'Clean Speech'}
           emoji={coreMetrics.filler_word_percentage > 5 ? '⚠️' : '✅'}
+          ref={(el) => { kpiRefs.current[2] = el; }}
           delay={0.25}
         />
         <KPI
@@ -293,6 +417,7 @@ const MetricsDashboard = () => {
           suffix=""
           category={coreMetrics.pause_count_label}
           emoji={coreMetrics.pause_count_emoji}
+          ref={(el) => { kpiRefs.current[3] = el; }}
           delay={0.3}
         />
       </div>
@@ -306,15 +431,17 @@ const MetricsDashboard = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
-          style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '24px', padding: '24px', border: '1px solid rgba(255,255,255,0.05)' }}
+          style={{ background: 'var(--panel)', borderRadius: '24px', padding: '24px', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}
+          ref={paceRef}
         >
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent, rgba(245,196,0,0.06))', pointerEvents: 'none' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h3 style={{ fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Speaking Pace</h3>
             <span style={{ fontSize: '0.8rem', color: '#9ca3af', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px' }}>Words Per Minute</span>
           </div>
           <div style={{ height: '250px', width: '100%' }}>
             {paceTimelineData ? (
-              <Line data={paceTimelineData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, beginAtZero: true }, x: { grid: { display: false } } } }} />
+              <Line data={paceTimelineData} options={paceOptions} />
             ) : (
               <div className="flex h-full items-center justify-center text-gray-500">Not enough data for timeline</div>
             )}
@@ -328,10 +455,12 @@ const MetricsDashboard = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
           style={{
-            background: 'rgba(255,255,255,0.02)', borderRadius: '24px', padding: '24px',
-            border: '1px solid rgba(255,255,255,0.05)', maxHeight: '340px', display: 'flex', flexDirection: 'column'
+            background: 'var(--panel)', borderRadius: '24px', padding: '24px',
+            border: '1px solid var(--border)', maxHeight: '340px', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden'
           }}
+          ref={transcriptRef}
         >
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 80% 0%, rgba(255,255,255,0.06), transparent 55%)', pointerEvents: 'none' }} />
           <h3 style={{ marginBottom: 16, fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Transcript</h3>
           <div style={{
             flex: 1, overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.2)',
@@ -357,6 +486,24 @@ const MetricsDashboard = () => {
       </div>
 
       {/* --- Row 4: AI Feedback --- */}
+      {insights.length > 0 && (
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 20, padding: 20 }}
+          ref={insightsRef}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Delivery Insights</h3>
+            <span className="pill pill-gold" style={{ margin: 0 }}>Auto-generated</span>
+          </div>
+          {insights.map((item, idx) => (
+            <FeedbackItem key={idx} category={item.category} severity={item.severity} message={item.message} index={idx} />
+          ))}
+        </motion.div>
+      )}
 
     </div>
   );

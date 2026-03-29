@@ -12,6 +12,35 @@ A React-based frontend for the OratoAI video analysis system.
 
 ## Setup Instructions
 
+## Fresh Clone Checklist (for teammates)
+
+If someone clones this project for the first time, they do not need to manually download any UI libraries.
+
+1. Install frontend packages:
+
+```bash
+cd frontend
+npm install
+```
+
+2. Start frontend:
+
+```bash
+npm start
+```
+
+3. Start backend separately from project root:
+
+```bash
+cd backend
+python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Notes:
+- New UI components such as animated profile cards, logo loop, and dashboard motion are included in source code and installed via package.json.
+- Required frontend packages are resolved by npm install (for example: framer-motion, gsap, chart.js, react-chartjs-2, ogl, lucide-react).
+- Team photos are expected at frontend/public/team/member-1.jpg, member-2.jpg, member-3.jpg.
+
 ### 1. Install Dependencies
 
 ```bash

@@ -22,6 +22,7 @@ const RedirectToDashboard = () => {
 function AppContent() {
   const { user, isAuthenticated, signout } = useAuth();
   const [submissionId, setSubmissionId] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('orato_theme') || 'dark');
 
   // Load session
   useEffect(() => {
@@ -30,6 +31,18 @@ function AppContent() {
       setSubmissionId(savedSubmissionId);
     }
   }, [isAuthenticated]);
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('orato_theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+
+  const auroraStops = theme === 'dark'
+    ? ['#cee54e', '#f5c400', '#fee556']
+    : ['#ffc800', '#f5c400', '#ffb300'];
 
   // Save session
   useEffect(() => {
@@ -53,10 +66,10 @@ function AppContent() {
       <div className="App">
         {/* GLOBAL BACKGROUND - The "Alive" Effect */}
         <Aurora 
-          colorStops={["#CC8F00", "#000000", "#CC8F00"]}
-          blend={0.5} 
-          amplitude={1.5} 
-          speed={1.0} 
+          colorStops={auroraStops}
+          blend={theme === 'dark' ? 0.35 : 0.28}
+          amplitude={theme === 'dark' ? 1.05 : 0.75}
+          speed={0.6}
         />
 
         <Toaster 
@@ -69,7 +82,7 @@ function AppContent() {
         />
         
         {/* Only show Header if logged in, otherwise Landing/Auth pages have their own layouts */}
-        {isAuthenticated && <Header user={user} onSignOut={handleSignOut} />}
+        {isAuthenticated && <Header user={user} onSignOut={handleSignOut} theme={theme} onToggleTheme={toggleTheme} />}
         
         <div style={{ minHeight: isAuthenticated ? 'calc(100vh - 70px)' : '100vh' }}>
           <Routes>
@@ -80,7 +93,7 @@ function AppContent() {
                 isAuthenticated ? (
                   <Navigate to="/upload" replace />
                 ) : (
-                  <LandingPage />
+                  <LandingPage theme={theme} onToggleTheme={toggleTheme} />
                 )
               } 
             />
