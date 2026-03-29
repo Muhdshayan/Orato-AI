@@ -15,6 +15,79 @@ router = APIRouter()
 # Initialize video service
 video_service = VideoService()
 
+@router.get("/sessions")
+async def get_user_sessions(current_user: dict = Depends(get_current_user)):
+    """Return all completed sessions for the authenticated user, newest first."""
+    try:
+        rows = execute_query(
+            """
+            SELECT
+                vs.submission_id,
+                vs.declared_topic,
+                vs.filename,
+                vs.filesize,
+                vs.uploaded_at,
+                vs.status,
+                cr.topic_match_score,
+                cr.factual_accuracy,
+                sm.filler_word_percentage,
+                sm.fluency_score,
+                sm.speech_rate
+            FROM video_submissions vs
+            LEFT JOIN transcripts t
+                ON t.submission_id = vs.submission_id
+            LEFT JOIN content_relevance cr
+                ON cr.transcript_id = t.transcript_id
+            LEFT JOIN speech_metrics sm
+                ON sm.transcript_id = t.transcript_id
+            WHERE vs.user_id = %s
+              AND vs.status = 'completed'
+            ORDER BY vs.uploaded_at DESC
+            """,
+            (current_user["user_id"],),
+        )
+
+        sessions = []
+        seen = set()
+        for row in rows or []:
+            sid = row["submission_id"] if isinstance(row, dict) else row[0]
+            sid = str(sid)
+            if sid in seen:
+                continue
+            seen.add(sid)
+
+            if isinstance(row, dict):
+                r = row
+            else:
+                keys = [
+                    "submission_id", "declared_topic", "filename", "filesize",
+                    "uploaded_at", "status", "topic_match_score",
+                    "factual_accuracy", "filler_word_percentage",
+                    "fluency_score", "speech_rate",
+                ]
+                r = dict(zip(keys, row))
+
+            sessions.append({
+                "submission_id": str(r.get("submission_id", "")),
+                "declared_topic": r.get("declared_topic", ""),
+                "filename": r.get("filename", ""),
+                "filesize": r.get("filesize", 0),
+                "uploaded_at": str(r.get("uploaded_at", "")),
+                "status": r.get("status", ""),
+                "topic_match_score": float(r["topic_match_score"]) if r.get("topic_match_score") is not None else None,
+                "factual_accuracy": float(r["factual_accuracy"]) if r.get("factual_accuracy") is not None else None,
+                "filler_pct": float(r["filler_word_percentage"]) if r.get("filler_word_percentage") is not None else None,
+                "fluency_score": float(r["fluency_score"]) if r.get("fluency_score") is not None else None,
+                "speech_rate": float(r["speech_rate"]) if r.get("speech_rate") is not None else None,
+            })
+
+        return {"sessions": sessions, "total": len(sessions)}
+    except Exception as e:
+        print(f"Error fetching sessions: {e}")
+        import traceback; traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sessions: {str(e)}")
+
+
 @router.post("/upload", response_model=VideoUploadResponse)
 async def upload_video(
     background_tasks: BackgroundTasks,
