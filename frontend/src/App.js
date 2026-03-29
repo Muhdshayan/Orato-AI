@@ -10,8 +10,9 @@ import ProtectedRoute from './components/ProtectedRoute';
 import VideoUpload from './components/VideoUpload';
 import VideoStatus from './components/VideoStatus';
 import AnalysisResults from './components/AnalysisResults';
-import LandingPage from './components/LandingPage'; // [NEW]
-import Aurora from './components/Aurora'; // [NEW]
+import LandingPage from './components/LandingPage';
+import SessionHistory from './components/SessionHistory';
+import Aurora from './components/Aurora';
 
 // Helper
 const RedirectToDashboard = () => {
@@ -109,6 +110,15 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <AnalysisResults />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/history" 
+              element={
+                <ProtectedRoute>
+                  <SessionHistory />
                 </ProtectedRoute>
               } 
             />
