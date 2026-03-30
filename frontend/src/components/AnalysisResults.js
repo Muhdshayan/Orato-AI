@@ -1,98 +1,138 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import MetricsDashboard from './MetricsDashboard';
 import VisualMetricsDashboard from './VisualMetricsDashboard';
 import TranscriptView from './TranscriptView';
 import { ContentRelevanceDashboard } from './ContentRelevanceDashboard';
-import { Mic, Eye, FileText, BookOpen } from 'lucide-react';
+import { Mic, Eye, FileText, BookOpen, Sparkles, Activity } from 'lucide-react';
+import BorderGlow from './BorderGlow';
 
 const AnalysisResults = () => {
   const { submissionId } = useParams();
-  const [activeTab, setActiveTab] = useState('visual'); // Default to Visual for the "Wow" factor
+  const [activeTab, setActiveTab] = useState('speech');
+  const shellRef = useRef(null);
+  const navRef = useRef(null);
 
   const tabs = [
-    { id: 'visual', label: 'Body Language', icon: Eye },
-    { id: 'speech', label: 'Speech Patterns', icon: Mic },
+    { id: 'speech', label: 'Speech Patterns', icon: Mic, hint: 'Voice pacing, fillers, fluency' },
+    { id: 'visual', label: 'Body Language', icon: Eye, hint: 'Posture, gaze, motion quality' },
     { id: 'transcript', label: 'Transcript', icon: FileText },
     { id: 'content', label: 'Content Relevance', icon: BookOpen },
   ];
 
+  const active = tabs.find((tab) => tab.id === activeTab);
+
   return (
-    <div className="container" style={{ paddingBottom: 80, paddingTop: 40 }}>
-      
-      {/* Page Header */}
-      <div style={{ marginBottom: 40, textAlign: 'center' }}>
-        <h2 style={{ 
-          fontSize: '2.5rem', 
-          marginBottom: '8px', 
-          background: 'linear-gradient(to right, #fff, #fbbf24)', 
-          WebkitBackgroundClip: 'text', 
-          WebkitTextFillColor: 'transparent' 
-        }}>
-          Performance Analysis
-        </h2>
-        <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-display)' }}>
-          SESSION ID: <span style={{ color: 'var(--primary)' }}>{submissionId.split('-')[0]}</span>
-        </p>
+    <div className="container" ref={shellRef} style={{ paddingBottom: 90, paddingTop: 40 }}>
+
+      <div
+        className="card"
+        style={{
+          marginBottom: 26,
+          padding: '24px',
+          borderRadius: 20,
+          position: 'relative',
+          overflow: 'hidden',
+          background: 'linear-gradient(135deg, rgba(245,196,0,0.2), rgba(255,255,255,0.02) 45%, rgba(0,0,0,0.08))'
+        }}
+      >
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 85% 20%, rgba(245,196,0,0.22), transparent 40%)', pointerEvents: 'none' }} />
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div>
+            <p className="pill pill-gold" style={{ marginBottom: 10, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Sparkles size={15} /> Intelligent Review
+            </p>
+            <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.9rem)', margin: '0 0 8px', lineHeight: 1.05 }}>Performance Analysis Hub</h2>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>Session {submissionId?.split('-')?.[0]} · {active?.label}</p>
+          </div>
+          <div style={{ display: 'grid', gap: 8, minWidth: 230 }}>
+            <div className="hero-meta"><Activity size={15} /> Active Module: {active?.label}</div>
+            <div className="hero-meta"><Sparkles size={15} /> Motion-led analytics experience</div>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        marginBottom: '40px',
-        background: 'rgba(255,255,255,0.03)',
-        padding: '6px',
-        borderRadius: '100px',
-        width: 'fit-content',
-        margin: '0 auto 40px auto',
-        border: '1px solid var(--border)'
-      }}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                background: isActive ? 'var(--primary-gradient)' : 'transparent',
-                color: isActive ? '#000' : 'var(--text-muted)',
-                border: 'none',
-                padding: '12px 28px',
-                borderRadius: '100px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontWeight: isActive ? 700 : 500,
-                fontSize: '0.95rem',
-                transition: 'all 0.3s ease',
-                position: 'relative'
-              }}
-            >
-              <tab.icon size={18} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
+        <div ref={navRef} style={{ position: 'sticky', top: 18, zIndex: 10 }}>
+          <BorderGlow
+            edgeSensitivity={38}
+            glowColor="42 92 62"
+            backgroundColor="var(--panel)"
+            borderRadius={18}
+            glowRadius={30}
+            glowIntensity={0.8}
+            coneSpread={23}
+            colors={["#f5c400", "#fbbf24", "#38bdf8"]}
+            fillOpacity={0.28}
+          >
+            <nav style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                className="analysis-tab-btn"
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  width: '100%',
+                  textAlign: 'left',
+                  border: isActive ? '1px solid rgba(245,196,0,0.42)' : '1px solid transparent',
+                  borderRadius: 14,
+                  background: isActive ? 'linear-gradient(135deg, rgba(245,196,0,0.2), rgba(255,255,255,0.02))' : 'transparent',
+                  color: 'var(--ink)',
+                  display: 'grid',
+                  gap: 4,
+                  padding: '14px 12px',
+                  marginBottom: 8,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '0.95rem',
+                  fontWeight: isActive ? 700 : 600
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: isActive ? 800 : 600 }}>
+                  <tab.icon size={17} />
+                  {tab.label}
+                </div>
+                {tab.hint && <span style={{ color: 'var(--text-muted)', fontSize: '0.86rem' }}>{tab.hint}</span>}
+              </button>
+            );
+          })}
+            </nav>
+          </BorderGlow>
+        </div>
 
-      {/* Animated Content Switcher */}
-      <AnimatePresence mode='wait'>
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.3 }}
+        <BorderGlow
+          className="analysis-panel-shell"
+          edgeSensitivity={40}
+          glowColor="42 92 65"
+          backgroundColor="var(--panel)"
+          borderRadius={18}
+          glowRadius={36}
+          glowIntensity={0.9}
+          coneSpread={22}
+          colors={["#f5c400", "#fde047", "#22d3ee"]}
+          fillOpacity={0.3}
         >
-          {activeTab === 'speech' && <MetricsDashboard />}
-          {activeTab === 'visual' && <VisualMetricsDashboard submissionId={submissionId} />}
-          {activeTab === 'transcript' && <TranscriptView />}
-          {activeTab === 'content' && <ContentRelevanceDashboard submissionId={submissionId} />}
-        </motion.div>
-      </AnimatePresence>
+          <div style={{ padding: 10, minHeight: 420 }}>
+            <AnimatePresence mode='wait'>
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 16, filter: 'blur(4px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -12, filter: 'blur(4px)' }}
+                transition={{ duration: 0.35, ease: 'easeOut' }}
+              >
+                {activeTab === 'speech' && <MetricsDashboard />}
+                {activeTab === 'visual' && <VisualMetricsDashboard submissionId={submissionId} />}
+                {activeTab === 'transcript' && <TranscriptView />}
+                {activeTab === 'content' && <ContentRelevanceDashboard submissionId={submissionId} />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </BorderGlow>
+      </div>
     </div>
   );
 };

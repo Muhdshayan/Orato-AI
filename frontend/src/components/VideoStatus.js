@@ -145,134 +145,135 @@ const VideoStatus = () => {
 
   if (isLoading) return <div className="card p-4 text-center"><div className="spinner"></div><p>Synchronizing...</p></div>
 
-  if (!status) return (
-    <div className="container" style={{paddingTop: 40}}>
-      <div className="card p-4 text-center" style={{borderColor: 'var(--error)'}}>
-        <AlertCircle size={48} color="var(--error)" style={{margin:'0 auto 20px'}}/>
-        <h3>Session Not Found</h3>
-        <button className="btn btn-secondary mt-4" onClick={() => navigate("/")}>Return to Base</button>
+  if (!status) {
+    return (
+      <div className="container" style={{ padding: '80px 24px' }}>
+        <div className="card p-4 text-center" style={{ borderColor: 'var(--error)' }}>
+          <AlertCircle size={48} color="var(--error)" style={{ margin: '0 auto 20px' }} />
+          <h3>Session not found</h3>
+          <button className="btn btn-secondary mt-4" onClick={() => navigate('/')}>Return to upload</button>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  // Determine State
-  const videoDone = status.status === "completed"
-  const transDone = transcriptStatus?.status === "completed"
-  const crDone = crStatus?.status === "completed"
-  const metricsDone = metricsStatus?.status === "completed"
+  const videoDone = status.status === 'completed'
+  const transDone = transcriptStatus?.status === 'completed'
+  const crDone = crStatus?.status === 'completed'
+  const metricsDone = metricsStatus?.status === 'completed'
 
   return (
-    <div className="container" style={{ maxWidth: '800px', padding: '40px 20px' }}>
-      
-      <div style={{ textAlign: 'center', marginBottom: 60 }}>
-        <h1>System Status</h1>
-        <p className="text-muted">Processing Pipeline for Session <span style={{fontFamily:'var(--font-mono)', color:'var(--accent-gold)'}}>{submissionId.split('-')[0]}</span></p>
+    <div className="container" style={{ padding: '80px 24px 120px', maxWidth: '1100px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
+        <div>
+          <p className="pill pill-gold" style={{ marginBottom: 12 }}>Live Pipeline</p>
+          <h1 style={{ margin: 0, fontSize: 'clamp(2.2rem, 4vw, 3rem)', lineHeight: 1.1 }}>Analysis status</h1>
+          <p className="text-muted" style={{ marginTop: 8 }}>Session <span style={{ color: 'var(--accent)' }}>{submissionId.split('-')[0]}</span></p>
+        </div>
+        <div className="card" style={{ padding: '12px 16px', minWidth: 240 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Clock size={18} />
+            <span style={{ fontWeight: 600 }}>Progress</span>
+            <span style={{ marginLeft: 'auto', fontWeight: 700 }}>{(status.progress || 0).toFixed(0)}%</span>
+          </div>
+          <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: 'var(--panel-soft)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${status.progress || 0}%`, background: 'var(--accent)', transition: 'width 0.4s ease' }} />
+          </div>
+        </div>
       </div>
 
-      <div style={{ position: 'relative', marginTop: '40px' }}>
-        
-        {/* Step 1: Upload */}
-        <div style={{ 
-          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
-          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
-          opacity: videoDone ? 1 : 0.7
-        }}>
-          <div style={{ color: videoDone ? 'var(--success)' : 'var(--accent-gold)' }}>
-            {videoDone ? <CheckCircle2 size={32} /> : <Clock size={32} className="spinner" />}
+      <div style={{ display: 'grid', gap: 24, gridTemplateColumns: 'minmax(0, 1fr)', position: 'relative' }}>
+        {[{
+          title: 'Video ingestion',
+          desc: 'Upload, compression, and format verification.',
+          done: videoDone,
+          canAct: false,
+          action: null,
+          icon: videoDone ? <CheckCircle2 size={28} /> : <Clock size={28} className="spinner" />,
+          badge: videoDone ? 'Complete' : `Processing ${(status.progress || 0).toFixed(0)}%`
+        }, {
+          title: 'Neural transcription',
+          desc: 'Convert audio to text with Parakeet ASR.',
+          done: transDone,
+          canAct: videoDone && !transDone,
+          action: (
+            <button className="btn btn-primary" onClick={handleGenerateTranscript} disabled={isTranscribing || transcriptStatus?.status === 'processing'}>
+              {transcriptStatus?.status === 'processing' ? 'Engine running...' : (isTranscribing ? 'Initializing...' : 'Start transcription')}
+            </button>
+          ),
+          icon: transDone ? <CheckCircle2 size={28} /> : <FileText size={28} />,
+          badge: transDone ? 'Complete' : (transcriptStatus?.status === 'processing' ? 'Processing…' : 'Awaiting start')
+        }, {
+          title: 'Content relevance',
+          desc: 'Topic match, factual accuracy, off-topic segments.',
+          done: crDone,
+          canAct: transDone && !crDone,
+          action: (
+            <button className="btn btn-primary" onClick={handleAnalyzeCR} disabled={isAnalyzingCR}>
+              {isAnalyzingCR ? 'Analyzing…' : 'Analyze content'}
+            </button>
+          ),
+          icon: crDone ? <CheckCircle2 size={28} /> : <BookOpen size={28} />,
+          badge: crDone ? 'Complete' : (transDone ? 'Ready to run' : 'Waiting on transcript')
+        }, {
+          title: 'Insight generation',
+          desc: 'Compute speech pace, fillers, and visual biometrics.',
+          done: metricsDone,
+          canAct: crDone && !metricsDone,
+          action: (
+            <button className="btn btn-primary" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
+              {isAnalyzing ? 'Processing…' : 'Generate analytics'}
+            </button>
+          ),
+          icon: metricsDone ? <CheckCircle2 size={28} /> : <Zap size={28} />,
+          badge: metricsDone ? 'Complete' : (crDone ? 'Ready to run' : 'Waiting on relevance')
+        }].map((step) => (
+          <div
+            key={step.title}
+            className="card"
+            style={{
+              padding: '18px 18px',
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr auto',
+              gap: 14,
+              alignItems: 'center',
+              opacity: step.done ? 1 : 0.95
+            }}
+          >
+            <div style={{ color: step.done ? 'var(--success)' : 'var(--ink)' }}>{step.icon}</div>
+            <div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <h3 style={{ margin: 0 }}>{step.title}</h3>
+                <span className="pill" style={{ padding: '6px 10px', fontSize: '0.75rem', background: 'var(--panel-soft)' }}>{step.badge}</span>
+              </div>
+              <p className="text-muted" style={{ margin: '6px 0 0' }}>{step.desc}</p>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              {step.canAct ? step.action : null}
+            </div>
           </div>
-          <div style={{ flex: 1 }}>
-            <h3>Video Ingestion</h3>
-            <p className="text-muted">Upload, compression, and format verification.</p>
-            <div style={{ marginTop: 8, fontSize: '0.9rem', color: videoDone ? 'var(--success)' : 'var(--accent-gold)' }}>
-              {videoDone ? "Complete" : `Processing... ${(status.progress || 0).toFixed(0)}%`}
+        ))}
+      </div>
+
+      {(videoDone && transDone && crDone && metricsDone) && (
+        <div className="card" style={{ marginTop: 32, padding: 20, borderColor: 'var(--success)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <CheckCircle2 size={24} color="var(--success)" />
+            <div>
+              <h3 style={{ margin: 0 }}>All systems go</h3>
+              <p className="text-muted" style={{ margin: 0 }}>Your report is ready.</p>
+            </div>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => navigate(`/dashboard/${submissionId}`)}>
+                View dashboard <ArrowRight size={16} />
+              </button>
+              <button className="btn btn-secondary" onClick={() => navigate(`/transcript/${submissionId}`)}>
+                Transcript <FileText size={16} />
+              </button>
             </div>
           </div>
         </div>
-
-        {/* Step 2: Transcription */}
-        <div style={{ 
-          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
-          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
-          opacity: transDone ? 1 : (videoDone ? 1 : 0.3)
-        }}>
-          <div style={{ color: transDone ? 'var(--success)' : 'var(--text-muted)' }}>
-            {transDone ? <CheckCircle2 size={32} /> : <FileText size={32} />}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3>Neural Transcription</h3>
-            <p className="text-muted">Convert audio to text using Parakeet ASR model.</p>
-            
-            {!transDone && videoDone && (
-              <div style={{ marginTop: '16px' }}>
-                {transcriptStatus?.status === 'processing' ? (
-                  <div className="text-gold">Engine Running...</div>
-                ) : (
-                  <button className="btn btn-primary" onClick={handleGenerateTranscript} disabled={isTranscribing}>
-                    {isTranscribing ? "Initializing..." : "Start Transcription"}
-                  </button>
-                )}
-              </div>
-            )}
-            {transDone && <div style={{ marginTop: 8, fontSize: '0.9rem', color: 'var(--success)' }}>Complete</div>}
-          </div>
-        </div>
-
-        {/* Step 3: Content Relevance */}
-        <div style={{ 
-          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
-          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
-          opacity: crDone ? 1 : (transDone ? 1 : 0.3)
-        }}>
-          <div style={{ color: crDone ? 'var(--success)' : 'var(--text-muted)' }}>
-            {crDone ? <CheckCircle2 size={32} /> : <BookOpen size={32} />}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3>Content Relevance</h3>
-            <p className="text-muted">Analyze topic match, factual accuracy, and off-topic segments.</p>
-            
-            {!crDone && transDone && (
-              <div style={{ marginTop: '16px' }}>
-                <button className="btn btn-primary" onClick={handleAnalyzeCR} disabled={isAnalyzingCR}>
-                  {isAnalyzingCR ? "Analyzing..." : "Analyze Content"}
-                </button>
-              </div>
-            )}
-            {crDone && <div style={{ marginTop: 8, fontSize: '0.9rem', color: 'var(--success)' }}>Complete</div>}
-          </div>
-        </div>
-
-        {/* Step 4: Analytics */}
-        <div style={{ 
-          display: 'flex', gap: 24, marginBottom: 40, padding: 24,
-          background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 16,
-          opacity: metricsDone ? 1 : (crDone ? 1 : 0.3)
-        }}>
-          <div style={{ color: metricsDone ? 'var(--success)' : 'var(--text-muted)' }}>
-            {metricsDone ? <CheckCircle2 size={32} /> : <Zap size={32} />}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h3>Insight Generation</h3>
-            <p className="text-muted">Compute speech pace, fillers, and visual biometrics.</p>
-            
-            {!metricsDone && crDone && (
-              <div style={{ marginTop: '16px' }}>
-                <button className="btn btn-primary" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
-                  {isAnalyzing ? "Processing..." : "Generate Analytics"}
-                </button>
-              </div>
-            )}
-            
-            {metricsDone && crDone && (
-              <div style={{ marginTop: '16px' }}>
-                <button className="btn btn-primary" onClick={() => navigate(`/dashboard/${submissionId}`)}>
-                  View Report <ArrowRight size={16} />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-      </div>
+      )}
     </div>
   )
 }
