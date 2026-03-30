@@ -68,78 +68,138 @@ class VideoService:
             response["message"] += " (Files uploaded to MinIO, URLs available via status endpoint)"
         
         return response
-    
-    def process_video_background(self, video_path: str, submission_id: str, topic: str, user_id: str):
+    def process_video_background(self, original_video_path: str, submission_id: str, topic: str, user_id: str):
         """
-        Background task to process video AND trigger analysis.
+        Refactored: Immediate Analysis Trigger + Background Asset Generation.
         """
-        created_temp_dir = None
+        print(f"🎬 Fluid processing started for submission {submission_id}")
         
         try:
-            print(f"🎬 Background processing started for submission {submission_id}")
+            # 1. INITIAL VALIDATION (Blocking, but fast)
+            # Ensure file exists and check duration before starting heavy tasks
+            self._validate_only(original_video_path)
             
-            # 1. SPLIT VIDEO
-            # Pass cleanup=False so we can use the files for the analysis step next
-            _, audio_path, derived_video_path, created_temp_dir = self._process_video_file(
-                video_path, submission_id, topic, user_id, cleanup=False
-            )
-            
-            print(f"✅ Video separation completed. Starting Analysis...")
+            # Update status to processing
+            self._update_status(submission_id, "processing")
+            self._create_processing_job(submission_id, "PROCESSING")
 
-            # 2. TRIGGER PARALLEL ANALYSIS
-            # We import here to avoid circular dependencies
+            # 2. TRIGGER ANALYSIS & ASSET GENERATION IN PARALLEL
             import asyncio
             from app.services.analysis_orchestrator import analysis_orchestrator
             
-            # Create a new event loop for the async orchestrator since we are in a sync function
+            async def run_parallel_pipeline():
+                # Task A: Run the Intelligent Analysis (CV + ASR + CR)
+                # We use the ORIGINAL file path for both to avoid waiting for the split
+                analysis_task = analysis_orchestrator.process_submission(
+                    submission_id, 
+                    original_video_path, # Use original for ASR
+                    original_video_path  # Use original for CV
+                )
+                
+                # Task B: Generate Derived Assets & Upload to MinIO (Background)
+                # This prepares the files for frontend playback (video-only, audio-only)
+                asset_task = asyncio.to_thread(
+                    self._generate_and_upload_assets, 
+                    original_video_path, 
+                    submission_id
+                )
+                
+                # We await both to ensure cleanup happens only when both are done
+                print(f"🚀 Launching Parallel Streams: Analysis and Asset Generation")
+                await asyncio.gather(analysis_task, asset_task)
+
+            # Execution
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(run_parallel_pipeline())
+            finally:
+                loop.close()
             
-            loop.run_until_complete(
-                analysis_orchestrator.process_submission(
-                    submission_id, 
-                    audio_path, 
-                    derived_video_path
-                )
-            )
-            loop.close()
-            
-            print(f"✅ Background processing and analysis chain completed for {submission_id}")
+            print(f"✅ Fluid processing chain completed for {submission_id}")
             
         except Exception as e:
-            print(f"❌ Background processing failed for submission {submission_id}: {e}")
-            import traceback
-            traceback.print_exc()
-            
-            # Update status to failed
-            try:
-                self._update_status(submission_id, "failed")
-                execute_query(
-                    "UPDATE processing_jobs SET status = %s, error_message = %s WHERE submission_id = %s",
-                    ("FAILED", str(e), submission_id)
-                )
-            except Exception as update_error:
-                print(f"❌ Failed to update error status: {update_error}")
+            print(f"❌ Fluid processing failed for submission {submission_id}: {e}")
+            import traceback; traceback.print_exc()
+            self._update_status(submission_id, "failed")
+            self._update_processing_job(submission_id, "FAILED", str(e))
         
         finally:
             # 3. GLOBAL CLEANUP
-            
-            # Cleanup original upload temp file
-            try:
-                if os.path.exists(video_path):
-                    os.unlink(video_path)
-                    print(f"🧹 Cleaned up original upload: {video_path}")
-            except Exception as e:
-                print(f"⚠️ Failed to clean up original upload: {e}")
-
-            # Cleanup derived files (temp_dir from _process_video_file)
-            if created_temp_dir and os.path.exists(created_temp_dir):
+            if original_video_path and os.path.exists(original_video_path):
                 try:
-                    import shutil
-                    shutil.rmtree(created_temp_dir, ignore_errors=True)
-                    print(f"🧹 Cleaned up analysis temp directory: {created_temp_dir}")
+                    os.unlink(original_video_path)
+                    print(f"🧹 Cleaned up original upload: {original_video_path}")
                 except Exception as e:
-                    print(f"⚠️ Failed to cleanup analysis temp dir: {e}")
+                    print(f"⚠️ Cleanup failed: {e}")
+
+    def _validate_only(self, video_path: str):
+        """Perform quick validation without heavy processing."""
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"File not found: {video_path}")
+            
+        clip = VideoFileClip(video_path)
+        duration = clip.duration
+        clip.close()
+        
+        if duration > self.max_duration_seconds:
+            raise ValueError(f"Video duration ({duration:.2f}s) exceeds limit of {self.max_duration_seconds}s")
+        print(f"✅ Validation successful: {duration:.2f}s")
+
+    def _generate_and_upload_assets(self, video_path: str, submission_id: str):
+        """Background task for splitting and MinIO persistence."""
+        print(f"📦 Starting Background Asset Generation for {submission_id}")
+        temp_dir = None
+        clip = None
+        try:
+            # Create temp session
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+            temp_root = os.path.join(project_root, '.cache', 'temp')
+            os.makedirs(temp_root, exist_ok=True)
+            temp_dir = os.path.join(temp_root, f"assets_{uuid.uuid4().hex[:8]}")
+            os.makedirs(temp_dir, exist_ok=True)
+
+            base_name = f"{submission_id}_derived"
+            output_video = os.path.join(temp_dir, f"{base_name}_v.mp4")
+            output_audio = os.path.join(temp_dir, f"{base_name}_a.wav")
+
+            clip = VideoFileClip(video_path)
+            
+            # Generate Splits
+            clip.write_videofile(output_video, audio=False, verbose=False, logger=None)
+            if clip.audio:
+                clip.audio.write_audiofile(output_audio, verbose=False, logger=None)
+            clip.close()
+            clip = None
+
+            # Parallel MinIO Uploads
+            original_obj = f"uploads/{submission_id}.mp4"
+            video_only_obj = f"derived/{submission_id}_video_only.mp4"
+            audio_only_obj = f"derived/{submission_id}_audio_only.wav"
+
+            print(f"☁️ Uploading assets to MinIO...")
+            self.minio.upload_file(video_path, original_obj, content_type="video/mp4")
+            self.minio.upload_file(output_video, video_only_obj, content_type="video/mp4")
+            if os.path.exists(output_audio):
+                self.minio.upload_file(output_audio, audio_only_obj, content_type="audio/wav")
+
+            # Update DB with MinIO path
+            execute_query(
+                "UPDATE video_submissions SET minio_object_name = %s WHERE submission_id = %s",
+                (original_obj, submission_id)
+            )
+            print(f"✅ Assets persisted to MinIO for {submission_id}")
+
+        except Exception as e:
+            print(f"⚠️ Asset generation/upload error: {e}")
+            raise e
+        finally:
+            if clip:
+                try: clip.close() 
+                except: pass
+            if temp_dir and os.path.exists(temp_dir):
+                import shutil
+                shutil.rmtree(temp_dir, ignore_errors=True)
     
     def _update_status(self, submission_id: str, status: str, error_message: str = None):
         """Update processing status in database"""

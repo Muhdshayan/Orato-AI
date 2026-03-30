@@ -27,61 +27,61 @@ class AnalysisOrchestrator:
         self._update_job_status(submission_id, "PROCESSING")
 
         try:
-            # ── Phase 1: CV and Transcription in PARALLEL ─────────────────────
+            # ── Phase 1 & 2: CV and Transcription in PARALLEL FLUID FLOW ─────
             print(f"\n{'='*60}")
-            print(f"🎼 Phase 1: CV + Transcription running in PARALLEL")
+            print(f"🎼 Fluid Phasing: ASR and CV starting in parallel")
             print(f"{'='*60}")
 
-            task_transcription = asyncio.to_thread(
-                self._run_transcription_pipeline, submission_id, audio_path
-            )
+            # Define the ASR -> Content Relevance chain
+            async def run_speech_logic():
+                try:
+                    t_id, t_data = await asyncio.to_thread(
+                        self._run_transcription_pipeline, submission_id, audio_path
+                    )
+                    if t_id and t_data:
+                        print(f"✅ Transcription Ready. Launching Phase 2 (Content Relevance) immediately.")
+                        await asyncio.to_thread(
+                            self._run_content_relevance, submission_id, t_id, t_data
+                        )
+                        return t_id, t_data
+                    return None, None
+                except Exception as e:
+                    print(f"❌ Speech Logic Failed: {e}")
+                    raise e
+
+            # Start ASR/CR and CV in parallel
+            task_speech = asyncio.create_task(run_speech_logic())
             task_video = asyncio.to_thread(
                 self._run_video_pipeline, submission_id, video_path
             )
 
+            # Wait for both distinct paths to finish
+            print(f"🎼 Waiting for parallel streams (Speech/CR and CV) to converge...")
             phase1_results = await asyncio.gather(
-                task_transcription, task_video, return_exceptions=True
+                task_speech, task_video, return_exceptions=True
             )
-            transcription_result, video_result = phase1_results
+            speech_result, video_result = phase1_results
 
-            # Collect Phase 1 errors (non-fatal for video)
+            # Collect results and handle errors
             error_msgs = []
             transcript_id = None
-            transcript_data = None
-
-            if isinstance(transcription_result, Exception):
-                print(f"❌ Transcription Pipeline Failed: {transcription_result}")
-                error_msgs.append(f"Transcription: {str(transcription_result)}")
+            
+            if isinstance(speech_result, Exception):
+                print(f"❌ Speech/CR Stream Failed: {speech_result}")
+                error_msgs.append(f"Speech/CR: {str(speech_result)}")
             else:
-                transcript_id, transcript_data = transcription_result
-                print(f"✅ Phase 1 – Transcription done (transcript_id={transcript_id})")
+                transcript_id, _ = speech_result
+                print(f"✅ Speech/CR Stream complete.")
 
             if isinstance(video_result, Exception):
                 print(f"❌ Video Pipeline Failed: {video_result}")
                 error_msgs.append(f"Video: {str(video_result)}")
             else:
-                print(f"✅ Phase 1 – CV analysis done")
+                print(f"✅ Video Pipeline complete.")
 
-            # ── Phase 2: Content Relevance (requires transcript) ──────────────
+            # ── Phase 3: Generate Analytics (all prerequisites complete) ──────
             print(f"\n{'='*60}")
-            print(f"🎼 Phase 2: Content Relevance (transcription complete ✓)")
-            print(f"{'='*60}")
-
-            if transcript_id and transcript_data:
-                try:
-                    cr_result = await asyncio.to_thread(
-                        self._run_content_relevance, submission_id, transcript_id, transcript_data
-                    )
-                    print(f"✅ Phase 2 – Content Relevance stored for transcript_id={transcript_id}")
-                except Exception as cr_err:
-                    print(f"⚠️ Phase 2 – Content Relevance failed (non-fatal): {cr_err}")
-                    import traceback; traceback.print_exc()
-            else:
-                print(f"⚠️ Phase 2 – Skipping Content Relevance (no transcript available)")
-
-            # ── Phase 3: Generate Analytics (content relevance complete) ──────
-            print(f"\n{'='*60}")
-            print(f"🎼 Phase 3: Generate Analytics (content relevance complete ✓)")
+            print(f"🎼 Phase 3: Generate Analytics (all prerequisites complete ✓)")
             print(f"{'='*60}")
 
             try:
