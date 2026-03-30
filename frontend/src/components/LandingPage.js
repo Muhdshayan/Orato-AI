@@ -1,11 +1,12 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Zap, Shield, ArrowRight, Activity, Sparkles, PlayCircle, Timer, Sun, Moon } from 'lucide-react';
+import { Zap, Shield, ArrowRight, Activity, Sparkles, Sun, Moon } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import LogoLoop from './LogoLoop';
 import ProfileCard from './ProfileCard';
+import Footer from './Footer';
 
 const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
   const navigate = useNavigate();
@@ -160,19 +161,53 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
         </div>
 
         <motion.div data-hero initial={false} className="hero-visual">
-          <div className="glass" style={{ padding: '24px', position: 'relative' }}>
-            <div className="radial-glow" />
-            <div className="hero-chip">
-              <PlayCircle size={18} /> Live Playback + Metrics
+          <div className="hero-preview">
+            <div className="hero-preview-head">
+              <div className="hero-preview-title">Session Snapshot</div>
+              <div className="hero-preview-live"><span /> Live Analysis</div>
             </div>
-            <div className="hero-chart">
-              <div className="chart-bar" style={{ '--bar-h': '74%' }}>Pace</div>
-              <div className="chart-bar" style={{ '--bar-h': '58%' }}>Fillers</div>
-              <div className="chart-bar" style={{ '--bar-h': '86%' }}>Eye Focus</div>
-              <div className="chart-bar" style={{ '--bar-h': '68%' }}>Gestures</div>
+
+            <div className="hero-preview-score-row">
+              <div className="hero-preview-score-block">
+                <div className="hero-preview-score">87</div>
+                <div className="hero-preview-score-label">Delivery Score</div>
+              </div>
+
+              <div className="hero-preview-pills">
+                <div className="hero-preview-pill">Pace 142 wpm</div>
+                <div className="hero-preview-pill">Fillers 2.1%</div>
+                <div className="hero-preview-pill">Eye Contact 91%</div>
+              </div>
             </div>
-            <div className="hero-footer">
-              <Timer size={16} /> Insights stream as soon as upload finishes.
+
+            <div className="hero-preview-timeline">
+              <div className="hero-preview-line">
+                <span>00:14</span>
+                <p>Strong opening cadence. Keep this rhythm into your first argument.</p>
+              </div>
+              <div className="hero-preview-line">
+                <span>00:39</span>
+                <p>Posture drift detected. Lift chin slightly to keep confident framing.</p>
+              </div>
+              <div className="hero-preview-line">
+                <span>01:08</span>
+                <p>Two filler clusters found. Replace with intentional half-second pauses.</p>
+              </div>
+            </div>
+
+            <div className="hero-preview-meters">
+              <div className="hero-meter-row">
+                <label>Fluency</label>
+                <div className="hero-meter-track"><i style={{ width: '84%' }} /></div>
+              </div>
+              <div className="hero-meter-row">
+                <label>Body Language</label>
+                <div className="hero-meter-track"><i style={{ width: '78%' }} /></div>
+              </div>
+              <div className="hero-meter-row">
+                <label>Clarity</label>
+                <div className="hero-meter-track"><i style={{ width: '88%' }} /></div>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -211,7 +246,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
         viewport={{ once: true }}
         transition={{ delay: 0.2 }}
         className="container"
-        style={{ padding: '90px 24px 70px' }}
+        style={{ padding: '90px 24px 86px' }}
       >
         <p className="pill pill-gold" style={{ width: 'fit-content', marginBottom: 18 }}>Core Features</p>
         <h2 style={{ fontSize: 'clamp(2rem, 3vw, 2.8rem)', marginBottom: 24, maxWidth: 760 }}>
@@ -315,6 +350,8 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
           />
         </div>
       </div>
+
+      <Footer />
 
     </div>
   );
