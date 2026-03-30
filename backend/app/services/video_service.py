@@ -118,6 +118,10 @@ class VideoService:
             
             print(f"✅ Fluid processing chain completed for {submission_id}")
             
+            # Update database to mark processing as 100% complete
+            self._update_status(submission_id, "completed")
+            self._update_processing_job(submission_id, "DONE")
+            
         except Exception as e:
             print(f"❌ Fluid processing failed for submission {submission_id}: {e}")
             import traceback; traceback.print_exc()

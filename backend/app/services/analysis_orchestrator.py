@@ -145,25 +145,10 @@ class AnalysisOrchestrator:
         # Step 1 – Transcribe
         print(f"   Step 1: Transcribing audio...")
         try:
-            import signal
-
-            def _on_timeout(signum, frame):
-                raise TimeoutError("ASR transcription exceeded 30-second timeout")
-
-            if hasattr(signal, "SIGALRM"):          # Unix only
-                signal.signal(signal.SIGALRM, _on_timeout)
-                signal.alarm(30)
-                try:
-                    transcript_data = simple_asr_service.transcribe_audio(audio_path)
-                finally:
-                    signal.alarm(0)
-            else:                                   # Windows: no alarm support
-                print(f"   ⚠️ No SIGALRM on Windows – running without timeout")
-                transcript_data = simple_asr_service.transcribe_audio(audio_path)
-
+            transcript_data = simple_asr_service.transcribe_audio(audio_path)
             print(f"   ✅ Step 1 complete – transcription done")
-        except TimeoutError as te:
-            print(f"   ⚠️ Step 1 timeout: {te} – using empty transcript")
+        except Exception as te:
+            print(f"   ⚠️ Step 1 failed: {te} – using empty transcript")
             transcript_data = {"full_text": "", "text": "", "segments": []}
 
         # Step 2 – Store transcript (only if we have text)

@@ -143,7 +143,14 @@ const VideoStatus = () => {
     }
   }
 
-  if (isLoading) return <div className="card p-4 text-center"><div className="spinner"></div><p>Synchronizing...</p></div>
+  if (isLoading) {
+    return (
+      <div className="container" style={{ padding: '80px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div className="spinner" style={{ width: '40px', height: '40px', marginBottom: '20px' }}></div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>Synchronizing pipeline...</p>
+      </div>
+    )
+  }
 
   if (!status) {
     return (
@@ -184,49 +191,29 @@ const VideoStatus = () => {
 
       <div style={{ display: 'grid', gap: 24, gridTemplateColumns: 'minmax(0, 1fr)', position: 'relative' }}>
         {[{
-          title: 'Video ingestion',
-          desc: 'Upload, compression, and format verification.',
+          title: 'Visual AI Processing',
+          desc: 'Pose detection, motion tracking, and eye contact.',
           done: videoDone,
-          canAct: false,
-          action: null,
           icon: videoDone ? <CheckCircle2 size={28} /> : <Clock size={28} className="spinner" />,
-          badge: videoDone ? 'Complete' : `Processing ${(status.progress || 0).toFixed(0)}%`
+          badge: videoDone ? 'Complete' : `Crunching frames... ${(status.progress || 0).toFixed(0)}%`
         }, {
           title: 'Neural transcription',
           desc: 'Convert audio to text with Parakeet ASR.',
           done: transDone,
-          canAct: videoDone && !transDone,
-          action: (
-            <button className="btn btn-primary" onClick={handleGenerateTranscript} disabled={isTranscribing || transcriptStatus?.status === 'processing'}>
-              {transcriptStatus?.status === 'processing' ? 'Engine running...' : (isTranscribing ? 'Initializing...' : 'Start transcription')}
-            </button>
-          ),
-          icon: transDone ? <CheckCircle2 size={28} /> : <FileText size={28} />,
-          badge: transDone ? 'Complete' : (transcriptStatus?.status === 'processing' ? 'Processing…' : 'Awaiting start')
+          icon: transDone ? <CheckCircle2 size={28} /> : <FileText size={28} className={!transDone ? "pulse" : ""} />,
+          badge: transDone ? 'Complete' : 'Processing...'
         }, {
           title: 'Content relevance',
           desc: 'Topic match, factual accuracy, off-topic segments.',
           done: crDone,
-          canAct: transDone && !crDone,
-          action: (
-            <button className="btn btn-primary" onClick={handleAnalyzeCR} disabled={isAnalyzingCR}>
-              {isAnalyzingCR ? 'Analyzing…' : 'Analyze content'}
-            </button>
-          ),
-          icon: crDone ? <CheckCircle2 size={28} /> : <BookOpen size={28} />,
-          badge: crDone ? 'Complete' : (transDone ? 'Ready to run' : 'Waiting on transcript')
+          icon: crDone ? <CheckCircle2 size={28} /> : <BookOpen size={28} className={transDone && !crDone ? "pulse" : ""} />,
+          badge: crDone ? 'Complete' : (transDone ? 'Analyzing...' : 'Waiting on transcript')
         }, {
-          title: 'Insight generation',
-          desc: 'Compute speech pace, fillers, and visual biometrics.',
+          title: 'Speech Biometrics',
+          desc: 'Compute speech pace, fillers, and fluency scores.',
           done: metricsDone,
-          canAct: crDone && !metricsDone,
-          action: (
-            <button className="btn btn-primary" onClick={handleAnalyzeMetrics} disabled={isAnalyzing}>
-              {isAnalyzing ? 'Processing…' : 'Generate analytics'}
-            </button>
-          ),
-          icon: metricsDone ? <CheckCircle2 size={28} /> : <Zap size={28} />,
-          badge: metricsDone ? 'Complete' : (crDone ? 'Ready to run' : 'Waiting on relevance')
+          icon: metricsDone ? <CheckCircle2 size={28} /> : <Zap size={28} className={crDone && !metricsDone ? "pulse" : ""} />,
+          badge: metricsDone ? 'Complete' : (crDone ? 'Finalizing...' : 'Waiting on relevance')
         }].map((step) => (
           <div
             key={step.title}
@@ -234,7 +221,7 @@ const VideoStatus = () => {
             style={{
               padding: '18px 18px',
               display: 'grid',
-              gridTemplateColumns: 'auto 1fr auto',
+              gridTemplateColumns: 'auto 1fr',
               gap: 14,
               alignItems: 'center',
               opacity: step.done ? 1 : 0.95
@@ -247,9 +234,6 @@ const VideoStatus = () => {
                 <span className="pill" style={{ padding: '6px 10px', fontSize: '0.75rem', background: 'var(--panel-soft)' }}>{step.badge}</span>
               </div>
               <p className="text-muted" style={{ margin: '6px 0 0' }}>{step.desc}</p>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              {step.canAct ? step.action : null}
             </div>
           </div>
         ))}
