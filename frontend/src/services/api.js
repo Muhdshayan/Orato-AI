@@ -117,6 +117,12 @@ export const videoAPI = {
     return response.data;
   },
 
+  // Get all completed sessions for the current user
+  getSessions: async () => {
+    const response = await api.get('/api/v1/videos/sessions');
+    return response.data;
+  },
+
   // Health check
   healthCheck: async () => {
     const response = await api.get('/health');

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { videoAPI } from '../services/api'; // Ensure this matches your import path
 import { Radar, Line } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
@@ -20,13 +20,14 @@ ChartJS.register(
   PointElement, LineElement, Filler, Tooltip, Legend
 );
 
-// Force global chart defaults
+// Force global chart defaults (safe on canvas)
 ChartJS.defaults.color = '#94A3B8';
 ChartJS.defaults.borderColor = 'rgba(255,255,255,0.1)';
 
-const KPI = ({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }) => (
+const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }, ref) => (
   <motion.div
     className="card"
+    ref={ref}
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: delay }}
@@ -40,44 +41,19 @@ const KPI = ({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }) 
       {value}<span style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>{suffix}</span>
     </div>
   </motion.div>
-);
-
-const FeedbackItem = ({ category, severity, message, index }) => {
-  const borderColors = {
-    success: '#34d399',
-    warning: '#fbbf24',
-    error: '#f87171',
-    info: '#60a5fa'
-  };
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ delay: index * 0.1 }}
-      style={{
-        display: 'flex',
-        gap: 16,
-        padding: '16px',
-        marginBottom: '12px',
-        background: 'rgba(255,255,255,0.02)',
-        borderRadius: '12px',
-        borderLeft: `4px solid ${borderColors[severity] || '#60a5fa'}`
-      }}
-    >
-      <div>
-        <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '4px' }}>
-          {category}
-        </div>
-        <div style={{ fontSize: '1rem', color: 'var(--text-main)' }}>{message}</div>
-      </div>
-    </motion.div>
-  );
-};
+));
+KPI.displayName = 'KPI';
 
 const VisualMetricsDashboard = ({ submissionId }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const containerRef = useRef(null);
+  const heroRef = useRef(null);
+  const radarRef = useRef(null);
+  const kpiRefs = useRef([]);
+  const postureRef = useRef(null);
+  const flexionRef = useRef(null);
+  const insightsRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -98,6 +74,8 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     fetchData();
     return () => { isMounted = false; };
   }, [submissionId]);
+
+
 
   // --- 1. Radar Chart Data (Normalized to 0-100) ---
   const radarData = useMemo(() => {
@@ -138,18 +116,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     };
   }, [data]);
 
-  // --- 2. Chart Options & Helper ---
-  const timelineOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
-    scales: {
-      x: { grid: { display: false }, ticks: { color: '#94A3B8', maxTicksLimit: 8 } },
-      y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94A3B8' } }
-    },
-    interaction: { mode: 'index', intersect: false },
-  };
-
+  // --- 2. Helper ---
   const generateLabels = (timestamps) => {
     return (timestamps || []).map(t => {
       const mins = Math.floor(t / 60);
@@ -204,8 +171,26 @@ const VisualMetricsDashboard = ({ submissionId }) => {
 
   const score = data.overall_score || 0;
 
+  const lineOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)' } },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', maxTicksLimit: 8 } },
+      y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'var(--text-muted)' } }
+    },
+    interaction: { mode: 'index', intersect: false }
+  };
+
+  const insights = [
+    data.head_pose?.eye_contact_percentage ? `${data.head_pose.eye_contact_percentage.toFixed(1)}% eye contact—hold gaze on key points.` : null,
+    data.gestures?.hand_visibility?.any_hand_percentage ? `${data.gestures.hand_visibility.any_hand_percentage.toFixed(0)}% hand visibility—good for emphasis.` : null,
+    data.posture?.slouch_duration?.slouch_percentage !== undefined ? `${data.posture.slouch_duration.slouch_percentage.toFixed(1)}% slouch time—keep spine tall.` : null,
+    data.motion_energy?.burstiness_metrics?.burstiness ? `Motion burstiness ${data.motion_energy.burstiness_metrics.burstiness.toFixed(2)}—smooth out transitions.` : null
+  ].filter(Boolean);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
       {/* Top Section: Score & Radar */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
@@ -213,8 +198,10 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           className="card"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
-          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}
+          style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', background: 'var(--panel)', border: '1px solid var(--border)', position: 'relative', overflow: 'hidden' }}
+          ref={heroRef}
         >
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 0%, rgba(245,196,0,0.08), transparent 55%)', pointerEvents: 'none' }} />
           <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>VISUAL IMPACT SCORE</h3>
           <div style={{
             fontSize: '6rem', fontWeight: 800, lineHeight: 1,
@@ -236,6 +223,8 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
+          style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}
+          ref={radarRef}
         >
           <h3 style={{ marginBottom: 20, fontSize: '1.2rem', color: 'var(--text-main)' }}>Metric Balance</h3>
           <div style={{ height: '300px', display: 'flex', justifyContent: 'center' }}>
@@ -250,6 +239,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           label="Eye Contact"
           value={data.head_pose?.eye_contact_percentage?.toFixed(1)}
           suffix="%"
+          ref={(el) => { kpiRefs.current[0] = el; }}
           delay={0.1}
         />
         <KPI
@@ -257,12 +247,14 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           value={data.gestures?.hand_visibility?.any_hand_percentage?.toFixed(0)}
           suffix="%"
           color="#fb923c"
+          ref={(el) => { kpiRefs.current[1] = el; }}
           delay={0.15}
         />
         <KPI
           label="Gestures/Min"
           value={data.gestures?.gesture_frequency?.gestures_per_minute?.toFixed(1)}
           suffix=""
+          ref={(el) => { kpiRefs.current[2] = el; }}
           delay={0.2}
         />
         <KPI
@@ -270,6 +262,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           value={data.posture?.slouch_duration?.slouch_percentage?.toFixed(1)}
           suffix="%"
           color={data.posture?.slouch_duration?.slouch_percentage > 10 ? '#f87171' : '#34d399'}
+          ref={(el) => { kpiRefs.current[3] = el; }}
           delay={0.25}
         />
       </div>
@@ -315,13 +308,14 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
+            ref={postureRef}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Posture Stability</h3>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Craniocervical Angle</div>
             </div>
             <div style={{ height: '250px', width: '100%' }}>
-              <Line data={postureTimelineData} options={timelineOptions} />
+              <Line data={postureTimelineData} options={lineOptions} />
             </div>
           </motion.div>
         )}
@@ -333,19 +327,41 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
+            ref={flexionRef}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Neck Flexion Analysis</h3>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Flexion (Degrees)</div>
             </div>
             <div style={{ height: '250px', width: '100%' }}>
-              <Line data={neckFlexionData} options={timelineOptions} />
+              <Line data={neckFlexionData} options={lineOptions} />
             </div>
           </motion.div>
         )}
       </div>
 
       {/* Row 5: Feedback Section */}
+      {insights.length > 0 && (
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 20, padding: 20 }}
+          ref={insightsRef}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Visual Insights</h3>
+            <span className="pill pill-gold" style={{ margin: 0 }}>Auto-generated</span>
+          </div>
+          {insights.map((line, idx) => (
+            <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 10 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
+              <span style={{ color: 'var(--ink)' }}>{line}</span>
+            </div>
+          ))}
+        </motion.div>
+      )}
 
     </div>
   );

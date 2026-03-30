@@ -68,6 +68,17 @@ ORATO-AI/
 
 ## Getting Started
 
+## For New Contributors After Clone
+
+Use this quick order so all recent frontend components and backend APIs work immediately:
+
+1. Install backend dependencies from backend/requirements.txt.
+2. Install frontend dependencies from frontend/package.json using npm install.
+3. Start backend first on port 8000, then start frontend on port 3000.
+4. If UI looks incomplete, confirm team images exist in frontend/public/team/member-1.jpg, member-2.jpg, member-3.jpg.
+
+No manual download of UI libraries is needed; all required packages are versioned in package.json and installed automatically.
+
 ### Prerequisites
 - Python 3.8+
 - Node.js 16+
