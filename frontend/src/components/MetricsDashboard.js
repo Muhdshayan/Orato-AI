@@ -3,8 +3,6 @@ import { useParams } from 'react-router-dom';
 import { transcriptAPI } from '../services/api'; // Preserving your API import
 import { Radar, Line } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -159,34 +157,7 @@ const MetricsDashboard = () => {
     return () => { isMounted = false; };
   }, [submissionId]);
 
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-    if (loading || !metrics) return;
 
-    const ctx = gsap.context(() => {
-      const base = { ease: 'power2.out', duration: 0.9 };
-      const tl = gsap.timeline({
-        defaults: base,
-        scrollTrigger: {
-          trigger: containerRef.current,
-          start: 'top 70%'
-        }
-      });
-
-      tl.from(heroRef.current, { y: 28, opacity: 0 })
-        .from(scoreRef.current, { scale: 0.9, opacity: 0 }, '-=0.2')
-        .from(radarRef.current, { y: 26, opacity: 0 }, '-=0.2')
-        .from(kpiRefs.current, { y: 18, opacity: 0, stagger: 0.08 }, '-=0.1')
-        .from(paceRef.current, { y: 28, opacity: 0 }, '-=0.05')
-        .from(transcriptRef.current, { y: 28, opacity: 0 }, '-=0.15');
-
-      if (insightsRef.current) {
-        tl.from(insightsRef.current, { y: 18, opacity: 0 }, '-=0.05');
-      }
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, [loading, metrics]);
 
   // The backend wraps its response in a `metrics` key so we have metrics.metrics from the API
   const coreMetrics = metrics?.metrics || metrics;

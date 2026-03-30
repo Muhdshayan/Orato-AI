@@ -109,7 +109,7 @@
 
 .pc-shine {
   transition: opacity 220ms ease;
-  opacity: calc(0.3 + var(--card-opacity) * 0.2);
+  opacity: calc(0.18 + var(--card-opacity) * 0.14);
   mix-blend-mode: soft-light;
 }
 
@@ -120,11 +120,11 @@
   z-index: 3;
   background: transparent;
   background-image:
-    linear-gradient(140deg, rgba(245, 196, 0, 0.22), rgba(245, 196, 0, 0.05) 42%, rgba(255, 255, 255, 0.03)),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 42%, rgba(255, 255, 255, 0.01)),
     radial-gradient(
       circle at var(--pointer-x) var(--pointer-y),
-      rgba(245, 196, 0, 0.2) 0%,
-      rgba(245, 196, 0, 0.08) 26%,
+      rgba(126, 196, 255, 0.16) 0%,
+      rgba(126, 196, 255, 0.05) 26%,
       rgba(0, 0, 0, 0.25) 100%
     );
   background-position:
@@ -144,7 +144,7 @@
 
 .pc-card:hover .pc-shine,
 .pc-card.active .pc-shine {
-  opacity: calc(0.36 + var(--card-opacity) * 0.2);
+  opacity: calc(0.25 + var(--card-opacity) * 0.16);
 }
 
 .pc-shine::before {
@@ -160,13 +160,95 @@
   overflow: hidden;
   background-image: radial-gradient(
     farthest-corner circle at var(--pointer-x) var(--pointer-y),
-    rgba(245, 196, 0, 0.16) 10%,
-    rgba(245, 196, 0, 0.04) 42%,
+    rgba(126, 196, 255, 0.14) 10%,
+    rgba(126, 196, 255, 0.04) 42%,
     rgba(0, 0, 0, 0.42) 100%
   );
   mix-blend-mode: soft-light;
   filter: brightness(1) contrast(1);
   z-index: 4;
+}
+
+.pc-code-orbit {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.pc-code-icon {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent, #f5c400) 32%, transparent);
+  background: color-mix(in srgb, var(--panel, #101116) 78%, transparent);
+  color: color-mix(in srgb, var(--ink, #fff) 70%, var(--accent, #f5c400));
+  font-family: var(--font-display, 'Space Grotesk', sans-serif);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 180ms ease, transform 220ms ease;
+  will-change: transform;
+}
+
+.pc-card:hover .pc-code-icon,
+.pc-card.active .pc-code-icon {
+  opacity: 0.95;
+}
+
+.pc-code-icon-1 {
+  top: 14%;
+  left: 10%;
+  transform: translate3d(
+    calc((var(--pointer-from-left) - 0.5) * 14px),
+    calc((var(--pointer-from-top) - 0.5) * 10px),
+    0
+  );
+}
+
+.pc-code-icon-2 {
+  top: 13%;
+  right: 9%;
+  transform: translate3d(
+    calc((var(--pointer-from-left) - 0.5) * -15px),
+    calc((var(--pointer-from-top) - 0.5) * 12px),
+    0
+  );
+}
+
+.pc-code-icon-3 {
+  top: 42%;
+  left: 7%;
+  transform: translate3d(
+    calc((var(--pointer-from-left) - 0.5) * 18px),
+    calc((var(--pointer-from-top) - 0.5) * -9px),
+    0
+  );
+}
+
+.pc-code-icon-4 {
+  top: 41%;
+  right: 8%;
+  transform: translate3d(
+    calc((var(--pointer-from-left) - 0.5) * -18px),
+    calc((var(--pointer-from-top) - 0.5) * -8px),
+    0
+  );
+}
+
+.pc-code-icon-5 {
+  top: 67%;
+  right: 14%;
+  transform: translate3d(
+    calc((var(--pointer-from-left) - 0.5) * -10px),
+    calc((var(--pointer-from-top) - 0.5) * -12px),
+    0
+  );
 }
 
 .pc-avatar-content {

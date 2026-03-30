@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Bot, Zap, Shield, ArrowRight, Activity, Sparkles, PlayCircle, Timer, Sun, Moon } from 'lucide-react';
+import { Zap, Shield, ArrowRight, Activity, Sparkles, PlayCircle, Timer, Sun, Moon } from 'lucide-react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import LogoLoop from './LogoLoop';
@@ -33,10 +33,11 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
       if (featureCards?.length) {
         gsap.from(featureCards, {
           opacity: 0,
-          y: 32,
+          x: -40,
+          clipPath: 'inset(0 100% 0 0)',
           stagger: 0.15,
-          duration: 0.7,
-          ease: 'power2.out',
+          duration: 0.9,
+          ease: 'power3.out',
           scrollTrigger: {
             trigger: featuresRef.current,
             start: 'top 75%',
@@ -70,13 +71,12 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
       
       {/* Navigation */}
       <nav style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: 'var(--accent)', padding: '8px', borderRadius: '8px' }}>
-            <Bot size={24} color="#0f0f0f" />
-          </div>
-          <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            ORATO<span style={{ color: 'var(--accent-gold)' }}>.AI</span>
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img
+            src="/logo/logo.png"
+            alt="Orato AI logo"
+            style={{ height: 44, width: 'auto', display: 'block' }}
+          />
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {onToggleTheme && (
@@ -129,7 +129,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
           </motion.h1>
 
           <motion.p data-hero initial={false} style={{ fontSize: '1.1rem', color: 'var(--text-muted)', maxWidth: '640px', marginBottom: '28px', lineHeight: 1.65 }}>
-            Upload once. We track pace, fillers, posture, and topic relevance with motion that feels smooth, not showy. Two themes: bright studio (light) and night rehearsal (dark).
+            Upload your talk once and get focused feedback on pace, fillers, posture, and content relevance. Built to feel sharp, minimal, and coach-ready.
           </motion.p>
 
           <motion.div data-hero initial={false} style={{ display: 'flex', gap: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -203,7 +203,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
 
       </div>
 
-      {/* Feature Grid */}
+      {/* Feature Strip */}
       <motion.div 
         ref={featuresRef}
         initial={false}
@@ -211,25 +211,33 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
         viewport={{ once: true }}
         transition={{ delay: 0.2 }}
         className="container"
-        style={{ padding: '100px 24px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}
+        style={{ padding: '90px 24px 70px' }}
       >
-        <FeatureCard 
-          dataAttr
-          icon={<Activity size={32} color="var(--accent-gold)" />}
-          title="Biometric Feedback"
-          desc="Track eye contact, posture stability, and hand gestures with computer vision precision."
-        />
-        <FeatureCard 
-          icon={<Zap size={32} color="var(--accent-cyan)" />}
-          title="Speech Analytics"
-          desc="Measure WPM pace, filler word density, and tonal clarity in real-time."
-        />
-        <FeatureCard 
-          dataAttr
-          icon={<Shield size={32} color="#10B981" />}
-          title="Secure & Private"
-          desc="Enterprise-grade encryption. Your presentation data never leaves your private session."
-        />
+        <p className="pill pill-gold" style={{ width: 'fit-content', marginBottom: 18 }}>Core Features</p>
+        <h2 style={{ fontSize: 'clamp(2rem, 3vw, 2.8rem)', marginBottom: 24, maxWidth: 760 }}>
+          Clean signals. Precise coaching. No noisy UI.
+        </h2>
+
+        <div className="feature-reveal-stack">
+          <FeatureLine
+            dataAttr
+            icon={<Activity size={22} color="var(--accent-gold)" />}
+            title="Biometric Tracking"
+            desc="Eye contact, posture stability, and gesture rhythm scored frame by frame."
+          />
+          <FeatureLine
+            dataAttr
+            icon={<Zap size={22} color="var(--accent-cyan)" />}
+            title="Speech Intelligence"
+            desc="WPM, pauses, filler density, and delivery consistency in one timeline."
+          />
+          <FeatureLine
+            dataAttr
+            icon={<Shield size={22} color="#10B981" />}
+            title="Private By Design"
+            desc="Your recordings and reports stay scoped to your environment and session flow."
+          />
+        </div>
       </motion.div>
 
       {/* Steps timeline */}
@@ -273,8 +281,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             showUserInfo
             enableTilt
             enableMobileTilt={false}
-            behindGlowEnabled
-            behindGlowColor="rgba(245, 196, 0, 0.35)"
+            behindGlowEnabled={false}
           />
           <ProfileCard
             className="team-profile-card"
@@ -289,8 +296,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             showUserInfo
             enableTilt
             enableMobileTilt={false}
-            behindGlowEnabled
-            behindGlowColor="rgba(245, 196, 0, 0.32)"
+            behindGlowEnabled={false}
           />
           <ProfileCard
             className="team-profile-card"
@@ -305,8 +311,7 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             showUserInfo
             enableTilt
             enableMobileTilt={false}
-            behindGlowEnabled
-            behindGlowColor="rgba(245, 196, 0, 0.28)"
+            behindGlowEnabled={false}
           />
         </div>
       </div>
@@ -315,14 +320,14 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
   );
 };
 
-const FeatureCard = ({ icon, title, desc, dataAttr }) => (
-  <div className="card" data-feature={dataAttr} style={{ padding: '40px', background: 'rgba(15, 23, 42, 0.4)' }}>
-    <div style={{ marginBottom: '20px', background: 'rgba(255,255,255,0.05)', width: 'fit-content', padding: '12px', borderRadius: '12px' }}>
-      {icon}
+const FeatureLine = ({ icon, title, desc, dataAttr }) => (
+  <article className="feature-line" data-feature={dataAttr}>
+    <div className="feature-line-icon">{icon}</div>
+    <div>
+      <h3 className="feature-line-title">{title}</h3>
+      <p className="feature-line-desc">{desc}</p>
     </div>
-    <h3 style={{ fontSize: '1.5rem', marginBottom: '12px' }}>{title}</h3>
-    <p style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>{desc}</p>
-  </div>
+  </article>
 );
 
 const StatCard = ({ label, value, hint, positive }) => (

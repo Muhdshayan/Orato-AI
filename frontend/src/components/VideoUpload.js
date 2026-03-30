@@ -112,7 +112,7 @@ const VideoUpload = ({ onUploadSuccess }) => {
               colors={["#f5c400", "#ffd95b", "#38bdf8"]}
               fillOpacity={0.34}
             >
-              <form onSubmit={handleSubmit} style={{ borderRadius: '16px', padding: '32px' }}>
+              <form onSubmit={handleSubmit} style={{ borderRadius: '16px', padding: '77px' }}>
 
               {/* UPLOAD ZONE */}
               <motion.div

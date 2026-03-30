@@ -300,6 +300,13 @@ const ProfileCardComponent = ({
           <div className="pc-inside">
             <div className="pc-shine" />
             <div className="pc-glare" />
+            <div className="pc-code-orbit" aria-hidden="true">
+              <span className="pc-code-icon pc-code-icon-1">&lt;/&gt;</span>
+              <span className="pc-code-icon pc-code-icon-2">{}</span>
+              <span className="pc-code-icon pc-code-icon-3">npm</span>
+              <span className="pc-code-icon pc-code-icon-4">API</span>
+              <span className="pc-code-icon pc-code-icon-5">JS</span>
+            </div>
             <div className="pc-content pc-avatar-content">
               <img
                 className="avatar"

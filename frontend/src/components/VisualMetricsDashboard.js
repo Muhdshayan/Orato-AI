@@ -2,8 +2,6 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { videoAPI } from '../services/api'; // Ensure this matches your import path
 import { Radar, Line } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -77,27 +75,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     return () => { isMounted = false; };
   }, [submissionId]);
 
-  useEffect(() => {
-    gsap.registerPlugin(ScrollTrigger);
-    if (loading || !data) return;
 
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline({
-        defaults: { ease: 'power2.out', duration: 0.85 },
-        scrollTrigger: { trigger: containerRef.current, start: 'top 70%' }
-      });
-
-      tl.from(heroRef.current, { y: 30, opacity: 0 })
-        .from(radarRef.current, { y: 22, opacity: 0 }, '-=0.2')
-        .from(kpiRefs.current, { y: 18, opacity: 0, stagger: 0.07 }, '-=0.1');
-
-      if (postureRef.current) tl.from(postureRef.current, { y: 24, opacity: 0 }, '-=0.05');
-      if (flexionRef.current) tl.from(flexionRef.current, { y: 24, opacity: 0 }, '-=0.08');
-      if (insightsRef.current) tl.from(insightsRef.current, { y: 16, opacity: 0 }, '-=0.05');
-    }, containerRef);
-
-    return () => ctx.revert();
-  }, [loading, data]);
 
   // --- 1. Radar Chart Data (Normalized to 0-100) ---
   const radarData = useMemo(() => {

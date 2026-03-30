@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import gsap from 'gsap';
 import MetricsDashboard from './MetricsDashboard';
 import VisualMetricsDashboard from './VisualMetricsDashboard';
 import TranscriptView from './TranscriptView';
@@ -14,17 +13,6 @@ const AnalysisResults = () => {
   const [activeTab, setActiveTab] = useState('speech');
   const shellRef = useRef(null);
   const navRef = useRef(null);
-  const heroRef = useRef(null);
-
-  useEffect(() => {
-    const ctx = gsap.context(() => {
-      const tl = gsap.timeline({ defaults: { ease: 'power2.out', duration: 0.75 } });
-      tl.from(heroRef.current, { y: 24, opacity: 0 })
-        .from('.analysis-tab-btn', { y: 10, opacity: 0, stagger: 0.06 }, '-=0.3')
-        .from('.analysis-panel-shell', { y: 20, opacity: 0 }, '-=0.25');
-    }, shellRef);
-    return () => ctx.revert();
-  }, []);
 
   const tabs = [
     { id: 'speech', label: 'Speech Patterns', icon: Mic, hint: 'Voice pacing, fillers, fluency' },
@@ -39,7 +27,6 @@ const AnalysisResults = () => {
     <div className="container" ref={shellRef} style={{ paddingBottom: 90, paddingTop: 40 }}>
 
       <div
-        ref={heroRef}
         className="card"
         style={{
           marginBottom: 26,
@@ -67,7 +54,7 @@ const AnalysisResults = () => {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 280px) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
-        <div ref={navRef} style={{ position: 'sticky', top: 18 }}>
+        <div ref={navRef} style={{ position: 'sticky', top: 18, zIndex: 10 }}>
           <BorderGlow
             edgeSensitivity={38}
             glowColor="42 92 62"
@@ -79,7 +66,7 @@ const AnalysisResults = () => {
             colors={["#f5c400", "#fbbf24", "#38bdf8"]}
             fillOpacity={0.28}
           >
-            <div style={{ padding: 12 }}>
+            <nav style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 0 }}>
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -99,7 +86,9 @@ const AnalysisResults = () => {
                   padding: '14px 12px',
                   marginBottom: 8,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  fontSize: '0.95rem',
+                  fontWeight: isActive ? 700 : 600
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: isActive ? 800 : 600 }}>
@@ -110,7 +99,7 @@ const AnalysisResults = () => {
               </button>
             );
           })}
-            </div>
+            </nav>
           </BorderGlow>
         </div>
 

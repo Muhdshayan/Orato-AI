@@ -42,7 +42,7 @@ function AppContent() {
 
   const auroraStops = theme === 'dark'
     ? ['#cee54e', '#f5c400', '#fee556']
-    : ['#ffc800', '#f5c400', '#ffb300'];
+    : ['#d9c678', '#c7d9e7', '#e0c99a'];
 
   // Save session
   useEffect(() => {
@@ -67,8 +67,8 @@ function AppContent() {
         {/* GLOBAL BACKGROUND - The "Alive" Effect */}
         <Aurora 
           colorStops={auroraStops}
-          blend={theme === 'dark' ? 0.35 : 0.28}
-          amplitude={theme === 'dark' ? 1.05 : 0.75}
+          blend={theme === 'dark' ? 0.35 : 0.18}
+          amplitude={theme === 'dark' ? 1.05 : 0.5}
           speed={0.6}
         />
 
@@ -131,8 +131,14 @@ function AppContent() {
             <Route path="/transcript/:submissionId" element={<RedirectToDashboard />} />
 
             {/* Auth */}
-            <Route path="/signin" element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signin" />} />
-            <Route path="/signup" element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signup" />} />
+            <Route
+              path="/signin"
+              element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signin" theme={theme} onToggleTheme={toggleTheme} />}
+            />
+            <Route
+              path="/signup"
+              element={isAuthenticated ? <Navigate to="/upload" replace /> : <AuthForm mode="signup" theme={theme} onToggleTheme={toggleTheme} />}
+            />
 
             {/* 404 */}
             <Route path="*" element={<Navigate to="/" replace />} />

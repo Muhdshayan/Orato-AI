@@ -3,11 +3,11 @@
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
-import { User, Mail, Lock, Eye, EyeOff, ArrowRight, Zap } from "lucide-react"
+import { User, Mail, Lock, Eye, EyeOff, ArrowRight, Zap, Sun, Moon } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
 import { motion } from "framer-motion"
 
-const AuthForm = ({ mode = "signin", onAuthSuccess }) => {
+const AuthForm = ({ mode = "signin", onAuthSuccess, theme = "dark", onToggleTheme }) => {
   const navigate = useNavigate()
   const { signin, signup } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
@@ -34,9 +34,9 @@ const AuthForm = ({ mode = "signin", onAuthSuccess }) => {
     ...commonStyle,
     paddingLeft: '48px', // Space for Left Icon
     paddingRight: '16px', // Default Right padding
-    border: '1px solid rgba(255,255,255,0.1)',
-    background: 'rgba(0,0,0,0.3)',
-    color: 'white',
+    border: '1px solid var(--border)',
+    background: 'var(--panel)',
+    color: 'var(--ink)',
   }
 
   const buttonStyle = {
@@ -90,54 +90,73 @@ const AuthForm = ({ mode = "signin", onAuthSuccess }) => {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-void)' }}>
-      
-      {/* LEFT SIDE: BRANDING (Desktop) */}
-      <div style={{ 
-        flex: 1, 
-        background: 'linear-gradient(135deg, #0F172A 0%, #000 100%)', 
-        display: 'flex', 
-        flexDirection: 'column', 
-        justifyContent: 'center', 
-        padding: '60px',
-        position: 'relative',
-        overflow: 'hidden'
-      }} className="desktop-only">
-        
-        {/* Animated Background Element */}
-        <div style={{
-          position: 'absolute', top: '-20%', left: '-20%', width: '140%', height: '140%',
-          background: 'radial-gradient(circle at 50% 50%, rgba(245, 158, 11, 0.05), transparent 60%)',
-          animation: 'spin 20s linear infinite'
-        }} />
-
-        <div style={{ position: 'relative', zIndex: 10 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', marginBottom: '24px', color: 'var(--accent-gold)' }}>
-            <Zap size={32} fill="currentColor" />
-            <span style={{ fontSize: '1.5rem', fontWeight: 800, fontFamily: 'Space Grotesk', letterSpacing: '-0.02em' }}>ORATO.AI</span>
-          </div>
-          
-          <h1 style={{ fontSize: '3.5rem', fontWeight: 700, lineHeight: 1.1, marginBottom: '24px', color: 'white' }}>
-            Master the art of <br/>
-            <span style={{ color: 'var(--accent-gold)' }}>Persuasion.</span>
-          </h1>
-          
-          <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', maxWidth: '400px', lineHeight: 1.6 }}>
-            AI-powered analysis for your speech, body language, and delivery.
-          </p>
-        </div>
-      </div>
-
-      {/* RIGHT SIDE: FORM */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          style={{ width: '100%', maxWidth: '450px' }}
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+      <nav style={{ padding: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
+        <button
+          onClick={() => navigate('/')}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+          aria-label="Go to home"
         >
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <img
+              src="/logo/logo.png"
+              alt="Orato AI logo"
+              style={{ height: 44, width: 'auto', display: 'block' }}
+            />
+          </div>
+        </button>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              aria-label="Toggle theme"
+              style={{
+                background: 'var(--panel)',
+                border: '1px solid var(--border)',
+                color: 'var(--ink)',
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                display: 'grid',
+                placeItems: 'center',
+                boxShadow: 'var(--shadow)'
+              }}
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          )}
+        </div>
+      </nav>
+
+      <div className="auth-layout">
+        <div className="auth-brand-panel">
+          <div className="auth-brand-orb" />
+          <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '12px', marginBottom: '24px', color: 'var(--accent-gold)' }}>
+              <Zap size={30} fill="currentColor" />
+              <span style={{ fontSize: '1.35rem', fontWeight: 800, fontFamily: 'Space Grotesk', letterSpacing: '-0.02em' }}>Signal-first coaching</span>
+            </div>
+
+            <h1 style={{ fontSize: 'clamp(2.1rem, 4.6vw, 3.5rem)', fontWeight: 700, lineHeight: 1.1, marginBottom: '18px', color: 'var(--ink)' }}>
+              Turn each talk into
+              <span style={{ color: 'var(--accent-gold)' }}> measurable progress.</span>
+            </h1>
+
+            <p style={{ fontSize: '1.05rem', color: 'var(--text-muted)', maxWidth: '460px', lineHeight: 1.6 }}>
+              Get precise feedback on speech delivery, body language, and content quality from one clean dashboard.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45 }}
+            className="auth-form-shell"
+          >
           <div style={{ marginBottom: '40px' }}>
-            <h2 style={{ fontSize: '2rem', marginBottom: '8px', color: 'white' }}>
+            <h2 style={{ fontSize: '2rem', marginBottom: '8px', color: 'var(--ink)' }}>
               {isSignup ? "Create Account" : "Welcome Back"}
             </h2>
             <p style={{ color: 'var(--text-muted)' }}>
@@ -236,7 +255,8 @@ const AuthForm = ({ mode = "signin", onAuthSuccess }) => {
               </button>
             </p>
           </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </div>
     </div>
   )
