@@ -1,8 +1,32 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { User, LogOut, SunMedium, MoonStar } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { Bot, User, LogOut, Upload, Clock, SunMedium, MoonStar } from 'lucide-react';
+
+const NavLink = ({ to, icon, label, isActive }) => (
+  <Link
+    to={to}
+    style={{
+      textDecoration: 'none',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      fontSize: '0.9rem',
+      fontWeight: 500,
+      color: isActive ? '#fff' : 'var(--text-muted)',
+      padding: '6px 14px',
+      borderRadius: '8px',
+      background: isActive ? 'rgba(255,255,255,0.08)' : 'transparent',
+      transition: 'all 0.2s',
+    }}
+  >
+    {icon}
+    {label}
+  </Link>
+);
 
 const Header = ({ user, onSignOut, theme = 'dark', onToggleTheme }) => {
+  const location = useLocation();
+
   return (
     <header style={{ position: 'sticky', top: 0, zIndex: 50 }}>
       <div
@@ -25,7 +49,13 @@ const Header = ({ user, onSignOut, theme = 'dark', onToggleTheme }) => {
             style={{ height: 44, width: 'auto', display: 'block' }}
           />
         </Link>
-        
+
+        {/* Navigation */}
+        <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <NavLink to="/upload" icon={<Upload size={15} />} label="New Session" isActive={location.pathname === '/upload'} />
+          <NavLink to="/history" icon={<Clock size={15} />} label="History" isActive={location.pathname === '/history'} />
+        </nav>
+
         {/* User Actions */}
         {user && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
