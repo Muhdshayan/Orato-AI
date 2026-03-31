@@ -124,12 +124,6 @@ async def startup_event():
     
     print("🚀 OratoAI API started successfully!")
 
-from app.api.content_relevance import router as content_relevance_router
-app.include_router(
-    content_relevance_router,
-    prefix="/api/v1/content-relevance",
-    tags=["Content Relevance"],
-)
 # Shutdown event - runs when app stops
 @app.on_event("shutdown")
 async def shutdown_event():

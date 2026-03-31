@@ -288,8 +288,101 @@ def _is_obvious_non_fact_claim(claim: str, topic: str = "") -> bool:
         "in this video",
         "let us talk about",
         "let's talk about",
+        "i have ",
+        "i belong to",
+        "i belong from",
+        "i am from ",
+        "i'm from ",
+        "i finished ",
+        "i finish ",
+        "i completed ",
+        "i like ",
+        "i love ",
+        "i enjoy ",
+        "i play ",
+        "i read ",
+        "my favorite ",
+        "my favourite ",
+        "my hobby ",
+        "my hobbies ",
+        "i'm going to ",
+        "i am going to ",
+        "i will go ",
+        "i plan to ",
+        "i want to ",
+        "my family ",
+        "my father ",
+        "my mother ",
+        "my dad ",
+        "my mom ",
+        "my brother ",
+        "my sister ",
+        "my grandfather ",
+        "my grandmother ",
+        "my uncle ",
+        "my aunt ",
+        "my cousin ",
+        "my parents ",
+        "my son ",
+        "my daughter ",
+        "my wife ",
+        "my husband ",
+        "my friend ",
+        "my friends ",
+        "my school ",
+        "my college ",
+        "my university ",
+        "my teacher ",
+        "my house ",
+        "my home ",
+        "my city ",
+        "my village ",
+        "my country ",
+        "my age ",
+        "i was born ",
+        "i grew up ",
+        "i studied ",
+        "i study ",
+        "i live in ",
+        "i lived in ",
+        "i work at ",
+        "i work in ",
+        "i work as ",
+        "i joined ",
+        "i had joined ",
+        "i have joined ",
+        "i went to ",
+        "i go to ",
+        "i attend ",
+        "i attended ",
+        "i learned ",
+        "i learn ",
+        "i spoke ",
+        "i speak ",
+        "i taught ",
+        "i teach ",
+        "i moved to ",
+        "i came to ",
+        "i came from ",
+        "i started ",
+        "i passed ",
+        "i got ",
+        "i did ",
+        "i do ",
+        "i used to ",
+        "i'm studying ",
+        "i am studying ",
+        "i'm working ",
+        "i am working ",
+        "i'm living ",
+        "i am living ",
     )
     if t.startswith(bad_starts):
+        return True
+
+    # Broader rule: any sentence starting with "i" + past tense personal verb
+    # about the speaker's own actions/life is unverifiable
+    if re.match(r"^i\s+(had|have|was|am|did|do|can|could|would|should|will)\s", t):
         return True
 
     bad_contains = (
@@ -297,6 +390,29 @@ def _is_obvious_non_fact_claim(claim: str, topic: str = "") -> bool:
         " today the topic is ",
         " topic is ",
         " i will talk about ",
+        " i belong to ",
+        " i belong from ",
+        " my favorite ",
+        " my favourite ",
+        " i have brothers",
+        " i have sisters",
+        " i have a brother",
+        " i have a sister",
+        " my family ",
+        " my father ",
+        " my mother ",
+        " my grandfather ",
+        " my grandmother ",
+        " my parents ",
+        " i joined ",
+        " i had joined ",
+        " i studied ",
+        " i study ",
+        " i live in ",
+        " i lived in ",
+        " i went to ",
+        " i attend ",
+        " i attended ",
     )
     if any(k in f" {t} " for k in bad_contains):
         return True
@@ -401,7 +517,28 @@ def extract_claims(text: str, topic: str) -> Tuple[str, List[str]]:
         "  - Topic announcements  ('Today my topic is X', 'I will talk about X')\n"
         "  - Opinions  ('I think', 'I believe')\n"
         "  - Vague statements with no checkable content\n"
-        "  - Questions\n\n"
+        "  - Questions\n"
+        "  - Personal biographical facts about the speaker  "
+        "('I have two brothers', 'I belong to Rawalpindi', 'I finished my studies', "
+        "'My family includes my grandmother', 'My father is a teacher')  "
+        "— these are unverifiable private facts, not public claims\n"
+        "  - Personal experiences, education, or affiliations  "
+        "('I joined Ishaal English house', 'I study at XYZ school', "
+        "'I had joined a coaching center', 'I learned English at ABC institute', "
+        "'I went to government school', 'I live in Islamabad')  "
+        "— these are the speaker's own life events, no public source can verify them\n"
+        "  - Future intentions or plans  "
+        "('I am going abroad', 'I will join X', 'I plan to do Y')  "
+        "— these are not factual assertions about the present or past\n"
+        "  - Personal habits, hobbies, or preferences  "
+        "('I like reading', 'my favorite thing is X', 'I play cricket')  "
+        "— these are subjective and privately held\n"
+        "  - Any statement where the subject is 'I' or 'my'  "
+        "— almost always personal and unverifiable by external sources\n"
+        "  - Any claim that can ONLY be verified by the speaker themselves  "
+        "— if no public source could confirm or deny it, skip it\n\n"
+        "Mental test before extracting: 'Could a search engine or encyclopedia "
+        "verify this independently of the speaker?' If NO, do not extract it.\n\n"
         "The purpose is: extract the speaker's claims exactly so we can verify them against "
         "external evidence and find which ones are wrong.\n\n"
         f"Presentation topic: {topic}"
@@ -459,6 +596,11 @@ def _heuristic_claims(text: str, topic: str = "") -> List[str]:
         "Do NOT correct dates, names, numbers, or any content. "
         "Ignore greetings, self-introductions, topic announcements, opinions, "
         "and vague statements.\n"
+        "Also ignore personal biographical facts ('I have two brothers', 'I belong to X'), "
+        "personal experiences/education ('I joined X institute', 'I study at Y school'), "
+        "future intentions ('I am going abroad'), and personal habits/preferences "
+        "('I like reading'). Drop any statement where the subject is 'I' or 'my'. "
+        "Only extract claims a search engine could verify.\n"
         'Return strict JSON: {"claims": ["claim as stated 1", "claim as stated 2", ...]}'
     )
     usr_prompt = (
@@ -492,7 +634,13 @@ def _split_atomic(claims: List[str], topic: str) -> List[str]:
         "If it says 'Narendra Modi', keep 'Narendra Modi'.\n"
         "  - Only split; never rewrite the factual content.\n"
         "  - Silently DROP items that are greetings, self-introductions, topic announcements, "
-        "opinions, or vague statements with no checkable content."
+        "opinions, or vague statements with no checkable content.\n"
+        "  - Also DROP personal biographical facts ('I have two brothers', 'I belong to X'), "
+        "personal experiences/education ('I joined Ishaal English house', 'I study at X school'), "
+        "future intentions ('I am going abroad'), and personal habits/preferences "
+        "('I like reading', 'my favorite thing is X').\n"
+        "  - DROP any statement where the subject is 'I' or 'my' — these are personal.\n"
+        "  - Only keep claims a search engine could verify independently of the speaker."
     )
     usr_prompt = (
         f"Topic: {topic}\n\nClaims (split only — do NOT fix facts):\n{block}\n\n"
@@ -540,9 +688,15 @@ def _normalize_claims(claims: List[str], topic: str) -> List[str]:
         "(if claim says 'Narendra Modi founded Pakistan', keep 'Narendra Modi')\n"
         "  - Add facts the original claim does not contain\n"
         "  - Fix or improve factual accuracy in any way\n\n"
+        "ALSO: if a claim is a personal biographical fact ('I have two brothers'), "
+        "a personal experience/education ('I joined X institute', 'I study at Y'), "
+        "a future intention ('I am going abroad'), or a personal preference/habit "
+        "('I like reading'), replace it with the string \"SKIP\" in the output array. "
+        "Any statement where the subject is 'I' or 'my' should be SKIPped. "
+        "These are unverifiable by any public source.\n\n"
         "The claims may contain errors — that is intentional, we need to verify them as-stated.\n\n"
         "Return strict JSON: {\"normalized\": [\"claim 1\", \"claim 2\", ...]}\n"
-        "Output list must be the SAME length as the input list."
+        "Output list must be the SAME length as the input list (use \"SKIP\" for dropped claims)."
     )
     usr_prompt = f"TOPIC: {topic}\n\nCLAIMS TO NORMALIZE (do not fix facts):\n{block}"
     try:
@@ -552,10 +706,11 @@ def _normalize_claims(claims: List[str], topic: str) -> List[str]:
             result = [
                 _strip_topic_prefix(s.strip())
                 for s in normalized
-                if isinstance(s, str) and s.strip()
+                if isinstance(s, str) and s.strip() and s.strip().upper() != "SKIP"
             ]
             if result:
-                logger.info("Claim normalization: %d → %d claims", len(claims), len(result))
+                logger.info("Claim normalization: %d → %d claims (dropped %d personal/unverifiable)",
+                            len(claims), len(result), len(claims) - len(result))
                 return result
     except Exception as exc:
         logger.warning("Claim normalization failed (%s); using original claims", type(exc).__name__)
@@ -1267,15 +1422,31 @@ def evaluate_topic_relevance(claims: List[str], topic: str, text: str = "") -> f
     """Return relevance score 0-1."""
     if not claims and not text:
         return 0.0
-    sample = claims[:10]
-    block = "\n".join(f"- {c}" for c in sample)
-    sys = (
-        "Evaluate what fraction of claims are relevant to the topic.\n"
-        'Return JSON: {"relevance_score": 0-100}'
-    )
-    usr = f"TOPIC: {topic}\nCLAIMS:\n{block}"
+
+    # When we have enough claims, evaluate claims against topic.
+    # When claims are few/empty (e.g. personal topics where most were filtered),
+    # evaluate the raw transcript text against the topic instead.
+    if len(claims) >= 2:
+        sample = claims[:10]
+        block = "\n".join(f"- {c}" for c in sample)
+        sys_prompt = (
+            "Evaluate what fraction of claims are relevant to the topic.\n"
+            'Return JSON: {"relevance_score": 0-100}'
+        )
+        usr_prompt = f"TOPIC: {topic}\nCLAIMS:\n{block}"
+    else:
+        transcript_sample = (text or "").strip()[:2000]
+        if not transcript_sample:
+            return _fallback_topic_relevance(claims, topic, text)
+        sys_prompt = (
+            "Rate how relevant the transcript content is to the declared topic.\n"
+            "100 = entirely about the topic, 0 = completely unrelated.\n"
+            'Return JSON: {"relevance_score": 0-100}'
+        )
+        usr_prompt = f"TOPIC: {topic}\nTRANSCRIPT:\n{transcript_sample}"
+
     try:
-        data = _invoke_and_parse_json(sys, usr, "topic_relevance")
+        data = _invoke_and_parse_json(sys_prompt, usr_prompt, "topic_relevance")
         raw_score = data.get("relevance_score")
         if raw_score is None:
             raise ValueError("Missing relevance_score from LLM response")
@@ -1388,7 +1559,7 @@ def score(full_text: str, declared_topic: str) -> ContentRelevanceResult:
         verdict_weight = {
             "verified": 1.0,
             "partially_true": 0.5,
-            "insufficient": 0.0,
+            "insufficient": 0.25,
             "hallucinated": 0.0,
         }
         factual_accuracy = sum(verdict_weight.get(c.verdict, 0.0) for c in claim_results) / len(claim_results)
@@ -1396,7 +1567,10 @@ def score(full_text: str, declared_topic: str) -> ContentRelevanceResult:
         factual_accuracy = 0.0
 
     # ── Step 8b: Topic relevance (global score; off-topic segments disabled) ─
-    topic_match_score = evaluate_topic_relevance(claims, declared_topic, cleaned_text)
+    # Use the full cleaned transcript for topic relevance, not just surviving
+    # fact-checkable claims — personal topics may have few verifiable claims
+    # but the transcript is still on-topic.
+    topic_match_score = evaluate_topic_relevance(claims, declared_topic, full_text)
     off_topic: List[OffTopicSegment] = []  # Disabled per user preference
 
     # ── Step 8c: Label ────────────────────────────────────────────────────
@@ -1414,8 +1588,13 @@ def score(full_text: str, declared_topic: str) -> ContentRelevanceResult:
         if cr.verdict in {"verified", "partially_true"} and cr.evidence_summary
     ][:5]
 
-    # ── Step 8e: Overall score (weighted blend 40% topic + 60% factual) ───
-    overall = int(round(topic_match_score * 40 + factual_accuracy * 60) * 100 / 100)
+    # ── Step 8e: Overall score ─────────────────────────────────────────────
+    # When claims exist: 40% topic + 60% factual.
+    # When no claims were extracted: 100% topic (don't penalize for absence of facts).
+    if claim_results:
+        overall = int(round(topic_match_score * 40 + factual_accuracy * 60))
+    else:
+        overall = int(round(topic_match_score * 100))
     overall = max(0, min(100, overall))
 
     logger.info(
