@@ -276,7 +276,7 @@ export function ContentRelevanceDashboard({ submissionId }) {
       </div>
 
       {/* ── Extracted claims ───────────────────────────────────── */}
-      {extractedClaims.length > 0 && (
+      {extractedClaims.length > 0 ? (
         <div style={card}>
           <p style={{ color: labelColor, fontSize: '14px', marginBottom: '12px', fontWeight: 600 }}>
             Extracted Facts From Transcript ({extractedClaims.length})
@@ -299,6 +299,23 @@ export function ContentRelevanceDashboard({ submissionId }) {
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div style={{
+          ...card,
+          textAlign: 'center',
+          padding: '40px 24px',
+          background: 'rgba(148,163,184,0.05)',
+          border: '1px solid rgba(148,163,184,0.12)',
+        }}>
+          <p style={{ color: '#94a3b8', fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
+            No Factual Claims Detected
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', lineHeight: 1.6, maxWidth: '500px', margin: '0 auto' }}>
+            The speaker did not make any externally verifiable factual claims in this transcript.
+            Personal statements, opinions, and biographical details are not fact-checkable
+            and have been excluded from the analysis.
+          </p>
         </div>
       )}
 

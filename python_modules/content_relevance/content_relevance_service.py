@@ -177,7 +177,10 @@ class ContentRelevanceService:
         else:
             label = "Low"
 
-        overall = max(0, min(100, int(round(topic_score * 40 + factual * 60) * 100 / 100)))
+        if extracted_claims:
+            overall = max(0, min(100, int(round(topic_score * 40 + factual * 60))))
+        else:
+            overall = max(0, min(100, int(round(topic_score * 100))))
 
         return {
             "topic_match_score": round(topic_score, 4),
