@@ -7,6 +7,7 @@ from app.core.database import execute_query
 from app.services.simple_asr_service import simple_asr_service
 from app.services.visual_analysis_service import visual_analysis_service
 from app.services.speech_metrics_service import speech_metrics_service
+from app.services.report_generator_service import report_generator_service
 from python_modules.content_relevance import content_relevance_service
 
 logger = logging.getLogger(__name__)
@@ -85,9 +86,7 @@ class AnalysisOrchestrator:
             print(f"{'='*60}")
 
             try:
-                await asyncio.to_thread(
-                    self._generate_analytics, submission_id, transcript_id
-                )
+                await self._generate_analytics(submission_id, transcript_id)
                 print(f"✅ Phase 3 – Analytics generation complete")
             except Exception as analytics_err:
                 print(f"⚠️ Phase 3 – Analytics generation failed (non-fatal): {analytics_err}")
@@ -189,47 +188,19 @@ class AnalysisOrchestrator:
               f"factual={result.get('factual_accuracy')}, overall={result.get('overall_content_score')}")
         return result
 
-    def _generate_analytics(self, submission_id: str, transcript_id: str):
+    async def _generate_analytics(self, submission_id: str, transcript_id: str):
         """
         Phase 3: Final analytics generation step.
         Runs after content relevance is completed and stored.
-        Aggregates scores from speech_metrics, cv_artifacts, and content_relevance
-        into analysis_reports / score_cards tables (when score_aggregator is ready).
+        Uses ReportGeneratorService to aggregate scores and generate LLM feedback.
         """
-        print(f"📊 Generate Analytics: aggregating scores for submission {submission_id}...")
+        print(f"📊 Generate Analytics: triggering report generation for {submission_id}...")
 
         try:
-            # Pull speech metrics score
-            speech_rows = execute_query(
-                "SELECT fluency_score FROM speech_metrics WHERE transcript_id = %s LIMIT 1",
-                (transcript_id,),
-            ) if transcript_id else []
-            fluency = float((speech_rows[0][0] if isinstance(speech_rows[0], (list, tuple)) else speech_rows[0].get("fluency_score", 0)) if speech_rows else 0)
-
-            # Pull CV overall score
-            cv_rows = execute_query(
-                """
-                SELECT pm.posture_score FROM posture_metrics pm
-                JOIN cv_artifacts ca ON pm.artifact_id = ca.artifact_id
-                WHERE ca.submission_id = %s
-                ORDER BY pm.created_at DESC LIMIT 1
-                """,
-                (submission_id,),
-            )
-            cv_score = float((cv_rows[0][0] if isinstance(cv_rows[0], (list, tuple)) else cv_rows[0].get("posture_score", 0)) if cv_rows else 0)
-
-            # Pull content relevance score
-            cr_rows = execute_query(
-                "SELECT topic_match_score, factual_accuracy FROM content_relevance WHERE transcript_id = %s LIMIT 1",
-                (transcript_id,),
-            ) if transcript_id else []
-            cr_topic   = float((cr_rows[0][0] if isinstance(cr_rows[0], (list, tuple)) else cr_rows[0].get("topic_match_score", 0)) if cr_rows else 0)
-            cr_factual = float((cr_rows[0][1] if isinstance(cr_rows[0], (list, tuple)) else cr_rows[0].get("factual_accuracy", 0)) if cr_rows else 0)
-
-            overall = round((fluency * 0.3 + cv_score * 0.3 + cr_topic * 40 + cr_factual * 60) / 2, 1)
-
-            print(f"   Fluency={fluency:.1f}  CV={cv_score:.1f}  "
-                  f"TopicMatch={cr_topic:.2f}  Factual={cr_factual:.2f}  → Overall≈{overall}")
+            # The service handles aggregation, weighting, and LLM advice
+            report = await report_generator_service.generate_report(submission_id)
+            
+            print(f"   Final Overall Score: {report.get('overall_score')}")
             print(f"✅ Analytics generation complete for {submission_id}")
 
         except Exception as e:
