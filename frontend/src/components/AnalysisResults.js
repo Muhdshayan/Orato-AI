@@ -5,7 +5,8 @@ import MetricsDashboard from './MetricsDashboard';
 import VisualMetricsDashboard from './VisualMetricsDashboard';
 import TranscriptView from './TranscriptView';
 import { ContentRelevanceDashboard } from './ContentRelevanceDashboard';
-import { Mic, Eye, FileText, BookOpen, Sparkles, Activity } from 'lucide-react';
+import CumulativeFeedback from './CumulativeFeedback';
+import { Mic, Eye, FileText, BookOpen, Sparkles, Activity, LayoutDashboard } from 'lucide-react';
 import BorderGlow from './BorderGlow';
 
 const AnalysisResults = () => {
@@ -19,6 +20,7 @@ const AnalysisResults = () => {
     { id: 'visual', label: 'Body Language', icon: Eye, hint: 'Posture, gaze, motion quality' },
     { id: 'transcript', label: 'Transcript', icon: FileText },
     { id: 'content', label: 'Content Relevance', icon: BookOpen },
+    { id: 'feedback', label: 'Overall Feedback', icon: LayoutDashboard, hint: 'Cumulative scores & AI insights' },
   ];
 
   const active = tabs.find((tab) => tab.id === activeTab);
@@ -128,6 +130,7 @@ const AnalysisResults = () => {
                 {activeTab === 'visual' && <VisualMetricsDashboard submissionId={submissionId} />}
                 {activeTab === 'transcript' && <TranscriptView />}
                 {activeTab === 'content' && <ContentRelevanceDashboard submissionId={submissionId} />}
+                {activeTab === 'feedback' && <CumulativeFeedback submissionId={submissionId} />}
               </motion.div>
             </AnimatePresence>
           </div>
