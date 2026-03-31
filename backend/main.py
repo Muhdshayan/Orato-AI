@@ -4,6 +4,7 @@ from app.api.video import router as video_router
 from app.api.users import router as users_router
 from app.api.transcript import router as transcript_router
 from app.api.content_relevance import router as content_relevance_router
+from app.api.report import router as report_router
 from app.core.config import settings
 
 # Create FastAPI instance with metadata
@@ -47,6 +48,12 @@ app.include_router(
     content_relevance_router,
     prefix="/api/v1/content-relevance",
     tags=["Content Relevance"],
+)
+
+app.include_router(
+    report_router,
+    prefix="/api/v1/reports",
+    tags=["reports"]
 )
 
 # Root endpoint - basic health check

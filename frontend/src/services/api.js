@@ -177,4 +177,16 @@ export const transcriptAPI = {
   },
 };
 
+// [NEW] Report API endpoints
+export const reportAPI = {
+  getReport: async (submissionId) => {
+    const response = await api.get(`/api/v1/reports/${submissionId}`);
+    return response.data;
+  },
+  generateReport: async (submissionId) => {
+    const response = await api.post(`/api/v1/reports/${submissionId}/generate`);
+    return response.data;
+  }
+};
+
 export default api;

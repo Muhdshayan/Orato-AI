@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     MAX_DURATION_SECONDS: int = 300  # 5 minutes
     SUPPORTED_LANGUAGE: str = "en"
     
+    # LLM & Search settings
+    GROQ_API_KEY: Optional[str] = None
+    TAVILY_API_KEY: Optional[str] = None
+    
     # API settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "OratoAI"

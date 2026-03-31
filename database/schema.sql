@@ -114,7 +114,7 @@ CREATE TABLE gesture_metrics (
 -- Analysis reports table
 CREATE TABLE analysis_reports (
     report_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    submission_id UUID NOT NULL REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
+    submission_id UUID UNIQUE NOT NULL REFERENCES video_submissions(submission_id) ON DELETE CASCADE,
     overall_score FLOAT,
     relevance_score FLOAT,
     tips_json JSONB,
