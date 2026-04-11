@@ -65,9 +65,9 @@ const SessionHistory = () => {
             onClick={fetchSessions}
             disabled={loading}
             style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: '#fff',
+              background: 'var(--panel-soft)',
+              border: '1px solid var(--border)',
+              color: 'var(--ink)',
               padding: '10px 20px',
               borderRadius: '10px',
               cursor: 'pointer',
@@ -115,14 +115,14 @@ const SessionHistory = () => {
         {/* Empty state */}
         {!loading && !error && sessions.length === 0 && (
           <div style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'var(--panel-soft)',
+            border: '1px solid var(--border)',
             borderRadius: '16px',
             padding: '60px 24px',
             textAlign: 'center',
           }}>
             <FileVideo size={48} style={{ color: 'var(--text-muted)', marginBottom: '16px' }} />
-            <h3 style={{ color: '#fff', marginBottom: '8px' }}>No sessions yet</h3>
+            <h3 style={{ color: 'var(--ink)', marginBottom: '8px' }}>No sessions yet</h3>
             <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
               Upload your first presentation to see results here.
             </p>
@@ -130,7 +130,7 @@ const SessionHistory = () => {
               onClick={() => navigate('/upload')}
               style={{
                 background: 'var(--primary-gradient, linear-gradient(135deg, #d4a745, #c9952e))',
-                color: '#000',
+                color: 'var(--btn-primary-text)',
                 border: 'none',
                 padding: '12px 28px',
                 borderRadius: '10px',
@@ -155,8 +155,8 @@ const SessionHistory = () => {
                 transition={{ delay: idx * 0.04 }}
                 onClick={() => navigate(`/dashboard/${s.submission_id}`)}
                 style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  border: '1px solid rgba(255,255,255,0.07)',
+                  background: 'var(--panel-soft)',
+                  border: '1px solid var(--border)',
                   borderRadius: '16px',
                   padding: '24px 28px',
                   cursor: 'pointer',
@@ -166,17 +166,17 @@ const SessionHistory = () => {
                   gap: '24px',
                 }}
                 onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
-                  e.currentTarget.style.borderColor = 'rgba(212,167,69,0.3)';
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--panel-soft) 70%, var(--accent-soft) 30%)';
+                  e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--accent) 36%, var(--border))';
                 }}
                 onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)';
+                  e.currentTarget.style.background = 'var(--panel-soft)';
+                  e.currentTarget.style.borderColor = 'var(--border)';
                 }}
               >
                 {/* Left: topic + meta */}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#fff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--ink)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {s.declared_topic || 'Untitled Session'}
                   </h3>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginTop: '8px', color: 'var(--text-muted)', fontSize: '0.85rem', flexWrap: 'wrap' }}>
@@ -215,8 +215,8 @@ const SessionHistory = () => {
 
 const ScorePill = ({ icon, label, value, color }) => (
   <div style={{
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
+    background: 'var(--panel-soft)',
+    border: '1px solid var(--border)',
     borderRadius: '10px',
     padding: '8px 14px',
     textAlign: 'center',

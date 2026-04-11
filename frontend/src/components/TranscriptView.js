@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { transcriptAPI } from "../services/api"
 import toast from "react-hot-toast"
-import { Loader, RefreshCw, ArrowLeft, Copy, Check, AlertCircle, Download, FileText, Clock, Cpu } from "lucide-react"
+import { Loader, RefreshCw, ArrowLeft, Copy, Check, AlertCircle, Download, Clock } from "lucide-react"
 
 const TranscriptView = ({ metricsOnly = false }) => {
   const { submissionId } = useParams()
@@ -72,14 +72,6 @@ const TranscriptView = ({ metricsOnly = false }) => {
     return transcript.audio_duration || transcript.asr_metadata?.audio_duration || 0
   }
 
-  // Helper to safely get confidence
-  const getConfidence = () => {
-    if (!transcript) return "N/A"
-    const conf = transcript.asr_confidence
-    if (typeof conf === 'number') return `${(conf * 100).toFixed(1)}%`
-    return "N/A"
-  }
-
   if (loading) {
     return (
       <div className="card text-center" style={{ padding: '60px' }}>
@@ -94,7 +86,7 @@ const TranscriptView = ({ metricsOnly = false }) => {
       <div className="card text-center" style={{ borderColor: 'var(--danger)' }}>
         <AlertCircle size={48} color="var(--danger)" style={{ marginBottom: "1rem", margin: '0 auto' }} />
         <h2 style={{ color: 'var(--danger)' }}>Transcript Unavailable</h2>
-        <p className="text-muted">{error || `No data found for ID: ${submissionId}`}</p>
+        <p className="text-muted">{error || "No transcript data found for this recording."}</p>
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
           <button onClick={() => navigate("/")} className="btn btn-secondary">
             <ArrowLeft size={16} /> Back
@@ -127,7 +119,7 @@ const TranscriptView = ({ metricsOnly = false }) => {
           </button>
           <div>
             <h2 style={{ fontSize: '1.25rem', margin: 0, lineHeight: 1.2 }}>Transcript</h2>
-            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>ID: {submissionId.split('-')[0]}...</span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>Speech-to-text output</span>
           </div>
         </div>
 
@@ -155,37 +147,19 @@ const TranscriptView = ({ metricsOnly = false }) => {
             </div>
           </div>
         </div>
-        <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Cpu size={24} color="var(--info)" />
-          <div>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Model</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
-              {transcript.model_used || transcript.asr_metadata?.model_used || 'Parakeet'}
-            </div>
-          </div>
-        </div>
-        <div className="card" style={{ padding: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <FileText size={24} color="var(--success)" />
-          <div>
-            <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Confidence</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>
-              {getConfidence()}
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Main Text Content */}
       <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
         <div style={{ 
           padding: '16px 24px', 
-          borderBottom: '1px solid rgba(255,255,255,0.05)',
-          background: 'rgba(255,255,255,0.02)'
+          borderBottom: '1px solid var(--border)',
+          background: 'var(--panel-soft)'
         }}>
           <h3 style={{ fontSize: '1rem', margin: 0, color: 'var(--text-secondary)' }}>Full Text</h3>
         </div>
         <div style={{ padding: '30px' }}>
-          <div className="transcript-text" style={{ fontSize: '1.1rem', lineHeight: '1.8', color: '#e2e8f0' }}>
+          <div className="transcript-text" style={{ fontSize: '1.1rem', lineHeight: '1.8', color: 'var(--ink)' }}>
             {transcript.full_text || transcript.text || "No text available."}
           </div>
         </div>

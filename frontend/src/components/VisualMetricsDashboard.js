@@ -21,8 +21,8 @@ ChartJS.register(
 );
 
 // Force global chart defaults (safe on canvas)
-ChartJS.defaults.color = '#94A3B8';
-ChartJS.defaults.borderColor = 'rgba(255,255,255,0.1)';
+ChartJS.defaults.color = '#64748b';
+ChartJS.defaults.borderColor = 'rgba(148,163,184,0.32)';
 
 const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }, ref) => (
   <motion.div
@@ -111,7 +111,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         backgroundColor: 'rgba(245, 158, 11, 0.2)',
         borderColor: '#F59E0B',
         borderWidth: 2,
-        pointBackgroundColor: '#fff',
+        pointBackgroundColor: '#f8fafc',
       }]
     };
   }, [data]);
@@ -177,7 +177,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)' } },
     scales: {
       x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', maxTicksLimit: 8 } },
-      y: { grid: { color: 'rgba(255,255,255,0.08)' }, ticks: { color: 'var(--text-muted)' } }
+      y: { grid: { color: 'rgba(148,163,184,0.22)' }, ticks: { color: '#64748b' } }
     },
     interaction: { mode: 'index', intersect: false }
   };
@@ -223,12 +223,12 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          style={{ background: 'var(--panel)', border: '1px solid var(--border)' }}
+          style={{ background: 'var(--panel)', border: '1px solid var(--border)', padding: '20px 20px 18px' }}
           ref={radarRef}
         >
-          <h3 style={{ marginBottom: 20, fontSize: '1.2rem', color: 'var(--text-main)' }}>Metric Balance</h3>
+          <h3 style={{ marginBottom: 20, fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Metric Balance</h3>
           <div style={{ height: '300px', display: 'flex', justifyContent: 'center' }}>
-            {radarData && <Radar data={radarData} options={{ scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } } }} />}
+            {radarData && <Radar data={radarData} options={{ scales: { r: { ticks: { display: false }, grid: { color: 'rgba(148,163,184,0.22)' } } }, plugins: { legend: { display: false } } }} />}
           </div>
         </motion.div>
       </div>
@@ -308,10 +308,11 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
+            style={{ padding: '20px 20px 18px' }}
             ref={postureRef}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Posture Stability</h3>
+              <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Posture Stability</h3>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Craniocervical Angle</div>
             </div>
             <div style={{ height: '250px', width: '100%' }}>
@@ -327,10 +328,11 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55 }}
+            style={{ padding: '20px 20px 18px' }}
             ref={flexionRef}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', color: 'var(--text-main)' }}>Neck Flexion Analysis</h3>
+              <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Neck Flexion Analysis</h3>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Flexion (Degrees)</div>
             </div>
             <div style={{ height: '250px', width: '100%' }}>

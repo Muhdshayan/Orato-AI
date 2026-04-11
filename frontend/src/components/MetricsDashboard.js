@@ -24,8 +24,8 @@ ChartJS.register(
 );
 
 // --- Chart Global Defaults (safe on canvas) ---
-ChartJS.defaults.color = '#94A3B8';
-ChartJS.defaults.borderColor = 'rgba(255,255,255,0.08)';
+ChartJS.defaults.color = '#64748b';
+ChartJS.defaults.borderColor = 'rgba(148,163,184,0.32)';
 ChartJS.defaults.font.family = '"Space Grotesk", "Inter", system-ui, sans-serif';
 
 // --- Helper: Dynamic Color Logic ---
@@ -180,7 +180,7 @@ const MetricsDashboard = () => {
         backgroundColor: 'rgba(250, 204, 21, 0.2)', // Gold/Amber
         borderColor: '#fbbf24',
         borderWidth: 2,
-        pointBackgroundColor: '#fff',
+        pointBackgroundColor: '#f8fafc',
         pointBorderColor: '#fbbf24',
       }]
     };
@@ -269,8 +269,8 @@ const MetricsDashboard = () => {
     scales: {
       r: {
         ticks: { display: false },
-        grid: { color: 'rgba(255,255,255,0.08)' },
-        angleLines: { color: 'rgba(255,255,255,0.08)' },
+        grid: { color: 'rgba(148,163,184,0.22)' },
+        angleLines: { color: 'rgba(148,163,184,0.22)' },
         suggestedMin: 0,
         suggestedMax: 100
       }
@@ -282,7 +282,7 @@ const MetricsDashboard = () => {
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.8)' } },
     scales: {
-      y: { grid: { color: 'rgba(255,255,255,0.08)' }, beginAtZero: true, ticks: { color: 'var(--text-muted)' } },
+      y: { grid: { color: 'rgba(148,163,184,0.22)' }, beginAtZero: true, ticks: { color: '#64748b' } },
       x: { grid: { display: false }, ticks: { color: 'var(--text-muted)', maxTicksLimit: 8 } }
     }
   };
@@ -294,7 +294,6 @@ const MetricsDashboard = () => {
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), transparent 45%)', pointerEvents: 'none' }} />
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
           <span className="pill pill-gold" style={{ margin: 0 }}>Speech Analytics</span>
-          <span style={{ color: 'var(--text-muted)' }}>Session {submissionId}</span>
         </div>
         <h2 style={{ margin: '10px 0 6px', fontSize: '2rem', fontWeight: 800 }}>Delivery Quality</h2>
         <p style={{ color: 'var(--text-muted)', margin: 0 }}>Fluency, pacing, pauses, and clarity distilled into a quick read.</p>
@@ -346,7 +345,7 @@ const MetricsDashboard = () => {
           ref={radarRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), transparent 60%)', pointerEvents: 'none' }} />
-          <h3 style={{ width: '100%', marginBottom: 20, fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Skill Balance</h3>
+          <h3 style={{ width: '100%', marginBottom: 20, fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Skill Balance</h3>
           <div style={{ height: '300px', width: '100%', display: 'flex', justifyContent: 'center' }}>
             {radarData && <Radar data={radarData} options={radarOptions} />}
           </div>
@@ -407,7 +406,7 @@ const MetricsDashboard = () => {
         >
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent, rgba(245,196,0,0.06))', pointerEvents: 'none' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Speaking Pace</h3>
+            <h3 style={{ fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Speaking Pace</h3>
             <span style={{ fontSize: '0.8rem', color: '#9ca3af', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px' }}>Words Per Minute</span>
           </div>
           <div style={{ height: '250px', width: '100%' }}>
@@ -432,7 +431,7 @@ const MetricsDashboard = () => {
           ref={transcriptRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 80% 0%, rgba(255,255,255,0.06), transparent 55%)', pointerEvents: 'none' }} />
-          <h3 style={{ marginBottom: 16, fontSize: '1.2rem', color: 'white', fontWeight: 600 }}>Transcript</h3>
+          <h3 style={{ marginBottom: 16, fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Transcript</h3>
           <div style={{
             flex: 1, overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.2)',
             borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)',

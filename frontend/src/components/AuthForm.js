@@ -97,12 +97,13 @@ const AuthForm = ({ mode = "signin", onAuthSuccess, theme = "dark", onToggleThem
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
           aria-label="Go to home"
         >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+          <div className="navbar-brand-wrap">
             <img
-              src="/logo/logo.png"
+              src="/logo/logo1.png"
               alt="Orato AI logo"
-              style={{ height: 44, width: 'auto', display: 'block' }}
+              className="navbar-brand-logo"
             />
+            <span className="navbar-brand-text">OratoAI</span>
           </div>
         </button>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -238,7 +239,7 @@ const AuthForm = ({ mode = "signin", onAuthSuccess, theme = "dark", onToggleThem
               style={buttonStyle} 
               disabled={isLoading}
             >
-              {isLoading ? <div className="spinner" style={{ width: '24px', height: '24px', borderTopColor: '#000' }}></div> : (
+              {isLoading ? <div className="spinner" style={{ width: '24px', height: '24px', borderTopColor: 'var(--btn-primary-text)' }}></div> : (
                 <>{isSignup ? "Create Account" : "Access Dashboard"} <ArrowRight size={20} /></>
               )}
             </button>
