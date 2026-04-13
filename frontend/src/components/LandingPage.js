@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
-import { Zap, Shield, ArrowRight, Activity, Sparkles, Sun, Moon } from 'lucide-react';
+import { Mic, ScanLine, FileCheck2, ArrowRight, Sparkles, Sun, Moon } from 'lucide-react';
 import LogoLoop from './LogoLoop';
 import ProfileCard from './ProfileCard';
 import Footer from './Footer';
@@ -10,6 +10,66 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
   const navigate = useNavigate();
   const snapshotRef = useRef(null);
   const snapshotInView = useInView(snapshotRef, { once: true, amount: 0.45 });
+  const [hoveredFeature, setHoveredFeature] = useState(null);
+  const smoothEase = [0.22, 1, 0.36, 1];
+  const coreFeatures = [
+    {
+      title: 'Accent-Aware Speech Intelligence',
+      summary: 'Precision transcription optimized for regional accents. Get granular feedback on speech rate, pause durations, and filler word density.',
+      detail: 'Precision transcription optimized for regional accents. Get granular feedback on speech rate, pause durations, and filler word density.',
+      icon: <Mic size={34} color="#ffc107" />
+    },
+    {
+      title: 'Biometric Posture Tracking',
+      summary: 'Frame-by-frame body language analysis. Track posture stability, slouch duration, and hand gesture rhythms to project total confidence.',
+      detail: 'Frame-by-frame body language analysis. Track posture stability, slouch duration, and hand gesture rhythms to project total confidence.',
+      icon: <ScanLine size={34} color="#7ec4ff" />
+    },
+    {
+      title: 'LLM Content Verification',
+      summary: 'Ensure your message hits the mark. Match your spoken transcript against your declared topic to verify relevance and factual accuracy.',
+      detail: 'Ensure your message hits the mark. Match your spoken transcript against your declared topic to verify relevance and factual accuracy.',
+      icon: <FileCheck2 size={34} color="#9cf7c6" />
+    }
+  ];
+
+  const sectionRevealVariants = {
+    hidden: { opacity: 0, y: 42 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.85,
+        ease: smoothEase
+      }
+    }
+  };
+
+  const sectionStaggerVariants = {
+    hidden: { opacity: 0, y: 38 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.82,
+        ease: smoothEase,
+        staggerChildren: 0.14,
+        delayChildren: 0.08
+      }
+    }
+  };
+
+  const sectionStaggerItemVariants = {
+    hidden: { opacity: 0, y: 34 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 0.68,
+        ease: smoothEase
+      }
+    }
+  };
 
   const featureGridVariants = {
     hidden: { opacity: 0 },
@@ -23,50 +83,51 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
   };
 
   const featureItemVariants = {
-    hidden: { opacity: 0, y: 28 },
+    hidden: { opacity: 0, y: 42 },
     visible: {
       opacity: 1,
       y: 0,
       transition: {
-        duration: 0.65,
-        ease: [0.4, 0, 0.2, 1]
+        duration: 0.72,
+        ease: smoothEase
       }
     }
   };
 
   const heroHeadlineAnimation = {
-    initial: { opacity: 0, y: 20 },
+    initial: { opacity: 0, y: 40 },
     animate: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.8, ease: [0.4, 0, 0.2, 1] }
+      transition: { duration: 0.8, ease: smoothEase }
     }
   };
 
   const heroSubtextAnimation = {
-    initial: { opacity: 0, y: 18 },
+    initial: { opacity: 0, y: 40 },
     animate: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.65, delay: 1.1, ease: [0.4, 0, 0.2, 1] }
+      transition: { duration: 0.8, delay: 0.2, ease: smoothEase }
     }
   };
 
   const heroActionsAnimation = {
-    initial: { opacity: 0, y: 18 },
+    initial: { opacity: 0, y: 40 },
     animate: {
       opacity: 1,
       y: 0,
-      transition: { duration: 0.6, delay: 1.2, ease: [0.4, 0, 0.2, 1] }
+      transition: { duration: 0.8, delay: 0.4, ease: smoothEase }
     }
   };
 
   const heroSnapshotAnimation = {
-    initial: { opacity: 0, x: 24 },
+    initial: { opacity: 0, x: 24, y: 24 },
     animate: {
       opacity: 1,
       x: 0,
-      transition: { duration: 0.7, delay: 0.5, ease: [0.4, 0, 0.2, 1] }
+      y: 0,
+      transition: { duration: 0.85, delay: 0.2, ease: smoothEase }
     }
   };
 
@@ -126,9 +187,8 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             animate={heroHeadlineAnimation.animate}
             className="hero-main-title"
           >
-            Present with calm confidence.
-            <span className="text-gold"> Precision feedback </span>
-            without the noise.
+            Present with <span className="text-gold">Calm Confidence.</span>{' '}
+            <span className="text-gold">Precision Feedback</span> without the Noise.
           </motion.h1>
 
           <motion.p
@@ -239,7 +299,13 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
       </motion.div>
 
       {/* Feature Grid */}
-      <div className="landing-brand-band">
+      <motion.div
+        className="landing-brand-band"
+        variants={sectionRevealVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.35 }}
+      >
         <div className="landing-brand-band-inner">
           <LogoLoop
             logos={[
@@ -259,116 +325,136 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             ariaLabel="OratoAI tech stack"
           />
         </div>
-      </div>
+      </motion.div>
 
       {/* Feature Strip */}
-      <section className="container core-features-section" style={{ padding: '90px 24px 86px' }}>
-        <p className="pill pill-gold" style={{ width: 'fit-content', marginBottom: 18 }}>Core Features</p>
-        <h2 style={{ fontSize: 'clamp(2rem, 3vw, 2.8rem)', marginBottom: 24, maxWidth: 760 }}>
-          Clean signals. Precise coaching. No noisy UI.
-        </h2>
+      <motion.section
+        className="container core-hgrow-section"
+        style={{ padding: '90px 24px 90px' }}
+        variants={sectionRevealVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.3 }}
+      >
+        <p className="pill pill-gold" style={{ width: 'fit-content', marginBottom: 16 }}>Core Features</p>
+        <h2 className="core-hgrow-heading">Precision systems for high-impact speaking.</h2>
 
         <motion.div
-          className="core-features-grid"
-          variants={featureGridVariants}
+          className="core-hgrow-row"
+          variants={sectionStaggerVariants}
           initial="hidden"
           whileInView="visible"
           viewport={{ once: true, amount: 0.25 }}
         >
-          <FeatureLine
-            kind="bio"
-            icon={<Activity size={40} color="var(--accent-gold)" />}
-            title="Biometric Tracking"
-            desc="Eye contact, posture stability, and gesture rhythm scored frame by frame."
-            variants={featureItemVariants}
-          />
-          <FeatureLine
-            kind="speech"
-            icon={<Zap size={40} color="var(--accent-cyan)" />}
-            title="Speech Intelligence"
-            desc="WPM, pauses, filler density, and delivery consistency in one timeline."
-            variants={featureItemVariants}
-          />
-          <FeatureLine
-            kind="privacy"
-            icon={<Shield size={40} color="#10B981" />}
-            title="Private By Design"
-            desc="Your recordings and reports stay scoped to your environment and session flow."
-            variants={featureItemVariants}
-          />
+          {coreFeatures.map((feature, index) => {
+            const isExpanded = hoveredFeature === index;
+            return (
+              <motion.article
+                key={feature.title}
+                variants={sectionStaggerItemVariants}
+                className={`core-hgrow-card ${isExpanded ? 'is-expanded' : ''}`}
+                onMouseEnter={() => setHoveredFeature(index)}
+                onMouseLeave={() => setHoveredFeature(null)}
+                onFocus={() => setHoveredFeature(index)}
+                onBlur={() => setHoveredFeature(null)}
+                tabIndex={0}
+              >
+                <div className="core-hgrow-icon">{feature.icon}</div>
+                <h3 className="core-hgrow-title">{feature.title}</h3>
+                <p className="core-hgrow-summary">{feature.summary}</p>
+                <p className="core-hgrow-detail">{feature.detail}</p>
+              </motion.article>
+            );
+          })}
         </motion.div>
-      </section>
+      </motion.section>
 
-      <div className="container" style={{ padding: '0 24px 120px' }}>
+      <motion.div
+        className="container"
+        style={{ padding: '0 24px 120px' }}
+        variants={sectionRevealVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.25 }}
+      >
         <p className="pill pill-gold" style={{ width: 'fit-content', marginBottom: 10 }}>Team</p>
         <h2 style={{ fontSize: 'clamp(1.8rem, 3vw, 2.6rem)', marginBottom: 8 }}>Built By 3 Makers</h2>
         <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
         </p>
 
-        <div className="team-grid">
-          <ProfileCard
-            className="team-profile-card"
-            name="Awais Khan"
-            title="AI & Backend"
-            handle="awaiskhan"
-            status="Building"
-            contactText="LinkedIn"
-            contactHref="https://www.linkedin.com/in/awais-khan-mwt/"
-            avatarUrl="/team/member-1.jpg"
-            miniAvatarUrl="/team/member-1.jpg"
-            showUserInfo
-            enableTilt
-            enableMobileTilt={false}
-            behindGlowEnabled={false}
-          />
-          <ProfileCard
-            className="team-profile-card"
-            name="Shayan Memon"
-            title="Frontend & UX"
-            handle="shayanmemon"
-            status="Designing"
-            contactText="LinkedIn"
-            contactHref="https://www.linkedin.com/in/shayan0773/"
-            avatarUrl="/team/member-2.jpg"
-            miniAvatarUrl="/team/member-2.jpg"
-            showUserInfo
-            enableTilt
-            enableMobileTilt={false}
-            behindGlowEnabled={false}
-          />
-          <ProfileCard
-            className="team-profile-card"
-            name="Ali Hiader"
-            title="CV & ML"
-            handle="alihaider"
-            status="Training"
-            contactText="LinkedIn"
-            contactHref="https://www.linkedin.com/in/ali-haider-cs/"
-            avatarUrl="/team/member-3.jpg"
-            miniAvatarUrl="/team/member-3.jpg"
-            showUserInfo
-            enableTilt
-            enableMobileTilt={false}
-            behindGlowEnabled={false}
-          />
-        </div>
-      </div>
+        <motion.div
+          className="team-grid"
+          variants={sectionStaggerVariants}
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+        >
+          <motion.div variants={sectionStaggerItemVariants}>
+            <ProfileCard
+              className="team-profile-card"
+              name="Awais Khan"
+              title="AI & Backend"
+              handle="awaiskhan"
+              status="Building"
+              contactText="LinkedIn"
+              contactHref="https://www.linkedin.com/in/awais-khan-mwt/"
+              avatarUrl="/team/member-1.jpg"
+              miniAvatarUrl="/team/member-1.jpg"
+              showUserInfo
+              enableTilt
+              enableMobileTilt={false}
+              behindGlowEnabled={false}
+            />
+          </motion.div>
+          <motion.div variants={sectionStaggerItemVariants}>
+            <ProfileCard
+              className="team-profile-card"
+              name="Shayan Memon"
+              title="Frontend & UX"
+              handle="shayanmemon"
+              status="Designing"
+              contactText="LinkedIn"
+              contactHref="https://www.linkedin.com/in/shayan0773/"
+              avatarUrl="/team/member-2.jpg"
+              miniAvatarUrl="/team/member-2.jpg"
+              showUserInfo
+              enableTilt
+              enableMobileTilt={false}
+              behindGlowEnabled={false}
+            />
+          </motion.div>
+          <motion.div variants={sectionStaggerItemVariants}>
+            <ProfileCard
+              className="team-profile-card"
+              name="Ali Hiader"
+              title="CV & ML"
+              handle="alihaider"
+              status="Training"
+              contactText="LinkedIn"
+              contactHref="https://www.linkedin.com/in/ali-haider-cs/"
+              avatarUrl="/team/member-3.jpg"
+              miniAvatarUrl="/team/member-3.jpg"
+              showUserInfo
+              enableTilt
+              enableMobileTilt={false}
+              behindGlowEnabled={false}
+            />
+          </motion.div>
+        </motion.div>
+      </motion.div>
 
-      <Footer />
+      <motion.div
+        variants={sectionRevealVariants}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, amount: 0.2 }}
+      >
+        <Footer />
+      </motion.div>
 
     </div>
   );
 };
-
-const FeatureLine = ({ icon, title, desc, kind, variants }) => (
-  <motion.article className={`core-feature-module ${kind ? `feature-kind-${kind}` : ''}`} variants={variants}>
-    <div className="feature-line-icon">{icon}</div>
-    <div className="core-feature-body">
-      <h3 className="feature-line-title">{title}</h3>
-      <p className="feature-line-desc core-feature-summary">{desc}</p>
-    </div>
-  </motion.article>
-);
 
 const CountUpNumber = ({ target, start, duration = 1500, decimals = 0, suffix = '' }) => {
   const [value, setValue] = useState(0);

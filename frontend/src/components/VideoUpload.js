@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useCallback } from "react"
+import React, { useState, useCallback, useEffect } from "react"
 import { useDropzone } from "react-dropzone"
 import { useNavigate } from "react-router-dom"
 import toast from "react-hot-toast"
@@ -18,6 +18,19 @@ const VideoUpload = ({ onUploadSuccess }) => {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [topic, setTopic] = useState("")
   const [selectedFile, setSelectedFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState("")
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl("")
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile)
+    setPreviewUrl(objectUrl)
+
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [selectedFile])
   
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0]
@@ -126,6 +139,27 @@ const VideoUpload = ({ onUploadSuccess }) => {
                   </>
                 )}
               </motion.div>
+
+              {previewUrl && selectedFile && (
+                <div className="vu-preview-card">
+                  <div className="vu-preview-header">
+                    <div>
+                      <p className="vu-preview-label">Video Preview</p>
+                      <h3>{selectedFile.name}</h3>
+                    </div>
+                    <span>{(selectedFile.size / (1024 * 1024)).toFixed(2)} MB</span>
+                  </div>
+                  <div className="vu-preview-frame">
+                    <video
+                      className="vu-preview-video"
+                      src={previewUrl}
+                      controls
+                      playsInline
+                      preload="metadata"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="vu-field-wrap">
                 <label htmlFor="topic">Presentation Topic</label>

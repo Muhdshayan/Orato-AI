@@ -44,10 +44,23 @@ const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold
 ));
 KPI.displayName = 'KPI';
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const formatClock = (seconds) => {
+  const safe = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+  const mins = Math.floor(safe / 60);
+  const secs = Math.floor(safe % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 const VisualMetricsDashboard = ({ submissionId }) => {
   const [data, setData] = useState(null);
+  const [files, setFiles] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [videoTime, setVideoTime] = useState(0);
+  const [videoDuration, setVideoDuration] = useState(0);
   const containerRef = useRef(null);
+  const videoRef = useRef(null);
   const heroRef = useRef(null);
   const radarRef = useRef(null);
   const kpiRefs = useRef([]);
@@ -59,7 +72,15 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     let isMounted = true;
     const fetchData = async () => {
       try {
-        const res = await videoAPI.getCVMetrics(submissionId);
+        const [res, filesRes] = await Promise.all([
+          videoAPI.getCVMetrics(submissionId),
+          videoAPI.getFiles(submissionId).catch(() => null)
+        ]);
+
+        if (isMounted) {
+          setFiles(filesRes);
+        }
+
         if (isMounted) {
           if (res.status !== 'processing' && res.status !== 'not_found') {
             setData(res);
@@ -164,6 +185,152 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       ]
     };
   }, [data]);
+
+  const demoVideoUrl = useMemo(() => files?.files?.original || null, [files]);
+
+  const framePoint = useMemo(() => {
+    const series = data?.time_series;
+    const timestamps = series?.timestamps || [];
+    if (!timestamps.length) return null;
+
+    let closestIdx = 0;
+    let bestDelta = Math.abs((timestamps[0] || 0) - videoTime);
+    for (let i = 1; i < timestamps.length; i++) {
+      const delta = Math.abs((timestamps[i] || 0) - videoTime);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        closestIdx = i;
+      }
+    }
+
+    const fps = data?.video_metadata?.fps || 30;
+    const t = timestamps[closestIdx] || 0;
+
+    return {
+      index: closestIdx,
+      timestamp: t,
+      approxFrame: Math.max(0, Math.round(t * fps)),
+      cca: series?.craniocervical_angles?.[closestIdx],
+      neckFlexion: series?.neck_flexion_angles?.[closestIdx],
+      fps,
+    };
+  }, [data, videoTime]);
+
+  const deepAnalysis = useMemo(() => {
+    const series = data?.time_series;
+    const timestamps = series?.timestamps || [];
+    const cca = series?.craniocervical_angles || [];
+    const neck = series?.neck_flexion_angles || [];
+
+    const n = Math.min(timestamps.length, cca.length, neck.length);
+    if (!n) return null;
+
+    const points = [];
+    for (let i = 0; i < n; i++) {
+      const c = Number(cca[i]);
+      const nf = Number(neck[i]);
+      if (Number.isFinite(c) && Number.isFinite(nf)) {
+        points.push({ i, t: Number(timestamps[i] || 0), cca: c, neck: nf });
+      }
+    }
+    if (!points.length) return null;
+
+    const mean = (arr) => arr.reduce((s, v) => s + v, 0) / arr.length;
+    const std = (arr) => {
+      const m = mean(arr);
+      return Math.sqrt(arr.reduce((s, v) => s + ((v - m) ** 2), 0) / arr.length);
+    };
+
+    const ccaValues = points.map((p) => p.cca);
+    const neckValues = points.map((p) => p.neck);
+
+    const ccaStd = std(ccaValues);
+    const neckStd = std(neckValues);
+
+    const neckWarn = 20;
+    const neckCritical = 28;
+    const ccaWarnLow = 46;
+    const ccaCriticalLow = 40;
+
+    const riskLabelForPoint = (p) => {
+      if (p.neck >= neckCritical || p.cca <= ccaCriticalLow) return 'critical';
+      if (p.neck >= neckWarn || p.cca <= ccaWarnLow) return 'warning';
+      return 'normal';
+    };
+
+    const riskFrames = points.filter((p) => riskLabelForPoint(p) !== 'normal').length;
+    const criticalFrames = points.filter((p) => riskLabelForPoint(p) === 'critical').length;
+
+    const loadIndex = clamp((riskFrames / points.length) * 100, 0, 100);
+    const criticalLoad = clamp((criticalFrames / points.length) * 100, 0, 100);
+    const stabilityIndex = clamp(100 - (ccaStd * 1.4 + neckStd * 1.8), 0, 100);
+
+    const windows = [];
+    let active = null;
+
+    for (let idx = 0; idx < points.length; idx++) {
+      const p = points[idx];
+      const label = riskLabelForPoint(p);
+
+      if (label === 'normal') {
+        if (active) {
+          active.end = p.t;
+          active.duration = Math.max(0, active.end - active.start);
+          windows.push(active);
+          active = null;
+        }
+        continue;
+      }
+
+      if (!active) {
+        active = {
+          severity: label,
+          start: p.t,
+          end: p.t,
+          duration: 0,
+          peakNeck: p.neck,
+          minCca: p.cca,
+        };
+      } else {
+        if (label === 'critical') active.severity = 'critical';
+        active.end = p.t;
+        active.peakNeck = Math.max(active.peakNeck, p.neck);
+        active.minCca = Math.min(active.minCca, p.cca);
+      }
+    }
+
+    if (active) {
+      active.duration = Math.max(0, active.end - active.start);
+      windows.push(active);
+    }
+
+    const rankedWindows = windows
+      .sort((a, b) => {
+        if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1;
+        return b.duration - a.duration;
+      })
+      .slice(0, 5);
+
+    const peakNeckPoint = points.reduce((best, p) => (p.neck > best.neck ? p : best), points[0]);
+    const minCcaPoint = points.reduce((best, p) => (p.cca < best.cca ? p : best), points[0]);
+
+    return {
+      stabilityIndex,
+      loadIndex,
+      criticalLoad,
+      windows: rankedWindows,
+      peakNeckPoint,
+      minCcaPoint,
+      avgCca: mean(ccaValues),
+      avgNeck: mean(neckValues),
+    };
+  }, [data]);
+
+  const seekTo = (seconds) => {
+    if (!videoRef.current || !Number.isFinite(seconds)) return;
+    videoRef.current.currentTime = Math.max(0, seconds);
+    setVideoTime(Math.max(0, seconds));
+  };
 
 
   if (loading) return <div className="card p-4 text-center"><div className="spinner"></div></div>;
@@ -342,7 +509,123 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         )}
       </div>
 
-      {/* Row 5: Feedback Section */}
+      {/* Row 5: Demo-only video and frame snapshot dropdown */}
+      <details
+        className="card"
+        style={{
+          border: '1px dashed var(--border)',
+          background: 'color-mix(in srgb, var(--panel) 95%, var(--accent-soft) 5%)',
+          padding: 16,
+          borderRadius: 16,
+        }}
+      >
+        <summary style={{ cursor: 'pointer', fontWeight: 700, color: 'var(--text-main)' }}>
+          Demo only: Deep visual analysis playback
+        </summary>
+
+        <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+          <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: '#000' }}>
+            {demoVideoUrl ? (
+              <>
+                <video
+                  ref={videoRef}
+                  src={demoVideoUrl}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  onTimeUpdate={(e) => setVideoTime(e.currentTarget.currentTime || 0)}
+                  onLoadedMetadata={(e) => setVideoDuration(e.currentTarget.duration || 0)}
+                  style={{ width: '100%', display: 'block' }}
+                />
+                <div style={{ padding: 10, borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(0,0,0,0.55)' }}>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0, videoDuration)}
+                    step={0.01}
+                    value={Math.min(videoTime, Math.max(0, videoDuration))}
+                    onChange={(e) => seekTo(Number(e.target.value))}
+                    style={{ width: '100%' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#e5e7eb', fontSize: '0.85rem' }}>
+                    <span>{formatClock(videoTime)}</span>
+                    <span>{formatClock(videoDuration)}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ padding: 16, color: 'var(--text-muted)' }}>Video preview is not available for this session.</div>
+            )}
+          </div>
+
+          <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: 'var(--panel)' }}>
+            <p className="pill pill-gold" style={{ marginBottom: 10 }}>Frame snapshot</p>
+            <div style={{ display: 'grid', gap: 8, color: 'var(--ink)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Video time</span><strong>{videoTime.toFixed(2)}s</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Duration</span><strong>{videoDuration ? `${videoDuration.toFixed(2)}s` : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Series index</span><strong>{framePoint ? framePoint.index : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Approx frame</span><strong>{framePoint ? framePoint.approxFrame : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Timestamp</span><strong>{framePoint ? `${framePoint.timestamp.toFixed(2)}s` : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>CCA angle</span><strong>{framePoint?.cca !== undefined ? `${Number(framePoint.cca).toFixed(2)}°` : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Neck flexion</span><strong>{framePoint?.neckFlexion !== undefined ? `${Number(framePoint.neckFlexion).toFixed(2)}°` : 'N/A'}</strong></div>
+            </div>
+          </div>
+
+          <div style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 14, background: 'var(--panel)' }}>
+            <p className="pill pill-gold" style={{ marginBottom: 10 }}>Deep analysis</p>
+
+            {deepAnalysis ? (
+              <>
+                <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Stability index</span><strong>{deepAnalysis.stabilityIndex.toFixed(1)} / 100</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Postural load</span><strong>{deepAnalysis.loadIndex.toFixed(1)}%</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Critical load</span><strong>{deepAnalysis.criticalLoad.toFixed(1)}%</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Avg CCA</span><strong>{deepAnalysis.avgCca.toFixed(2)}°</strong></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Avg neck flexion</span><strong>{deepAnalysis.avgNeck.toFixed(2)}°</strong></div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10 }}>
+                  <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Key moments</h4>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <button className="btn btn-secondary btn-sm" type="button" onClick={() => seekTo(deepAnalysis.peakNeckPoint.t)}>
+                      Jump to max neck flexion ({deepAnalysis.peakNeckPoint.neck.toFixed(2)}° at {formatClock(deepAnalysis.peakNeckPoint.t)})
+                    </button>
+                    <button className="btn btn-secondary btn-sm" type="button" onClick={() => seekTo(deepAnalysis.minCcaPoint.t)}>
+                      Jump to min CCA ({deepAnalysis.minCcaPoint.cca.toFixed(2)}° at {formatClock(deepAnalysis.minCcaPoint.t)})
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, marginTop: 10 }}>
+                  <h4 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Detected risk windows</h4>
+                  {deepAnalysis.windows.length ? (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {deepAnalysis.windows.map((window, idx) => (
+                        <button
+                          key={`${window.start}-${window.end}-${idx}`}
+                          className="btn btn-secondary btn-sm"
+                          type="button"
+                          onClick={() => seekTo(window.start)}
+                          style={{ justifyContent: 'space-between', display: 'flex' }}
+                        >
+                          <span>{window.severity.toUpperCase()} · {formatClock(window.start)} - {formatClock(window.end)}</span>
+                          <span>{window.duration.toFixed(1)}s</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ margin: 0, color: 'var(--text-muted)' }}>No warning/critical windows detected in this sample.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p style={{ margin: 0, color: 'var(--text-muted)' }}>Insufficient time-series data for deep analysis.</p>
+            )}
+          </div>
+        </div>
+      </details>
+
+      {/* Row 6: Feedback Section */}
       {insights.length > 0 && (
         <motion.div
           className="card"
