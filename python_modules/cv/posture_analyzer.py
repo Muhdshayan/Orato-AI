@@ -42,11 +42,13 @@ def calculate_craniocervical_angle(ear: Dict, c7: Dict, shoulder_mid: Optional[D
     if angle > 90:
         angle = 180 - angle
     
-    cca = 180 - angle
+    # Return the direct acute angle (should be roughly 48-55 degrees) to match config.py
+    # NOT the supplementary posterior angle.
+    cca = angle
     return cca
 
 
-def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[float]:
+def calculate_neck_flexion(head: Dict, c7: Dict) -> Optional[float]:
     """
     Calculate neck flexion angle - deviation of neck from vertical torso axis.
     
@@ -55,22 +57,21 @@ def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[floa
     Args:
         head: Head centroid
         c7: C7 vertebra
-        mid_hip: Pelvis center
         
     Returns:
         Flexion angle in degrees
     """
-    if (head['visibility'] < 0.5 or c7['visibility'] < 0.5 or 
-        mid_hip['visibility'] < 0.5):
+    if head['visibility'] < 0.5 or c7['visibility'] < 0.5:
         return None
     
-    # 3D vector from C7 to head (neck direction)
+    # 3D vector from C7 to head (neck direction — upward in body space)
     neck_vec = np.array([head['x'] - c7['x'], 
                         head['y'] - c7['y'],
                         head['z'] - c7['z']])
     
-    # 3D vertical reference vector (upward in image space)
-    vertical = np.array([0, 1, 0])
+    # MediaPipe image coordinates: Y increases DOWNWARD (top=0, bottom=1)
+    # So the "up" direction in image space is [0, -1, 0]
+    vertical = np.array([0, -1, 0])
     
     # Calculate 3D angle between neck and vertical
     neck_norm = np.linalg.norm(neck_vec)
@@ -83,7 +84,7 @@ def calculate_neck_flexion(head: Dict, c7: Dict, mid_hip: Dict) -> Optional[floa
     angle_rad = np.arccos(cos_angle)
     angle_deg = np.degrees(angle_rad)
     
-    # Flexion is deviation from vertical (90° - angle)
+    # Flexion is deviation from vertical (perfect upright = 0°)
     flexion = 90 - angle_deg
     
     return abs(flexion)
@@ -110,8 +111,8 @@ def analyze_slouch_duration(pose_data: List[Dict]) -> Dict:
         if not anat:
             continue
         
-        if 'head' in anat and 'c7' in anat and 'mid_hip' in anat:
-            flexion = calculate_neck_flexion(anat['head'], anat['c7'], anat['mid_hip'])
+        if 'head' in anat and 'c7' in anat:
+            flexion = calculate_neck_flexion(anat['head'], anat['c7'])
             
             if flexion is not None:
                 valid_frames += 1
@@ -263,13 +264,22 @@ def analyze_posture(pose_data: List[Dict], fps: float,
                     'visibility': min(left_shoulder['visibility'], right_shoulder['visibility'])
                 }
                 
-                # Use average of left and right ear with 3D shoulder midpoint
-                if 'left_ear' in landmarks and 'right_ear' in landmarks:
-                    left_cca = calculate_craniocervical_angle(landmarks['left_ear'], anat['c7'], shoulder_mid)
-                    right_cca = calculate_craniocervical_angle(landmarks['right_ear'], anat['c7'], shoulder_mid)
-                    
-                    if left_cca and right_cca:
-                        cca_angles.append((left_cca + right_cca) / 2)
+                # Use whatever ear is visible (left, right, or average of both)
+                ear_l = landmarks.get('left_ear')
+                ear_r = landmarks.get('right_ear')
+                
+                valid_ccas = []
+                if ear_l:
+                    left_cca = calculate_craniocervical_angle(ear_l, anat['c7'], shoulder_mid)
+                    if left_cca is not None:
+                        valid_ccas.append(left_cca)
+                if ear_r:
+                    right_cca = calculate_craniocervical_angle(ear_r, anat['c7'], shoulder_mid)
+                    if right_cca is not None:
+                        valid_ccas.append(right_cca)
+                        
+                if valid_ccas:
+                    cca_angles.append(sum(valid_ccas) / len(valid_ccas))
     
     # Get all metrics
     slouch_metrics = analyze_slouch_duration(pose_data)

@@ -154,52 +154,51 @@ class SpeechMetricsService:
 
     def _calculate_rolling_pace(self, segments: List[Dict], duration: float) -> List[Dict]:
         """
-        Generates 5-second buckets of WPM for the timeline graph.
+        Generates WPM for each spoken segment to precisely map pacing per phrase/thought.
         Returns: List of {time: seconds, wpm: int}
         """
-        # Safety check
         if not segments or duration <= 0: 
             print("⚠️ No segments or duration for timeline calculation.")
             return []
-        
-        # Bucket size in seconds
-        step = 5 
-        # Create buckets covering the whole duration
-        num_buckets = int(math.ceil(duration / step)) + 1
-        buckets = [0] * num_buckets
-        
-        for seg in segments:
-            # Handle dictionary vs list format from different ASR parsers
+            
+        timeline = []
+        for i, seg in enumerate(segments):
+            # Parse different ASR formats
             if isinstance(seg, dict):
                 start = seg.get('start', 0)
+                end = seg.get('end', 0)
                 text = seg.get('text', '')
             elif isinstance(seg, (list, tuple)) and len(seg) >= 3:
                 start = seg[1]
+                end = seg[2]  # Usually [text, start, end]
                 text = seg[0]
             else:
                 continue 
             
-            # Find which 5s bucket this segment starts in
-            idx = int(start / step)
-            if idx < len(buckets):
-                # Add word count to that bucket
-                buckets[idx] += len(text.split())
-        
-        # Convert word counts to WPM
-        timeline = []
-        for i, count in enumerate(buckets):
-            time_point = i * step
-            if time_point > duration: break
+            # Auto-heal missing end boundaries using next segment or total duration
+            if end <= start:
+                if i + 1 < len(segments):
+                    next_seg = segments[i+1]
+                    end = next_seg.get('start', start + 2) if isinstance(next_seg, dict) else next_seg[1]
+                else:
+                    end = duration
             
-            # Formula: (Words in 5s) * (60s / 5s) = WPM
-            wpm = count * (60 / step)
+            seg_duration = end - start
+            words = len(text.split())
             
-            timeline.append({
-                'time': time_point,
-                'wpm': round(wpm)
-            })
-            
-        print(f"✅ Generated {len(timeline)} timeline points for graph.")
+            if seg_duration > 0 and words > 0:
+                # Calculate WPM precisely for this phrase window
+                wpm = (words / seg_duration) * 60
+                
+                # Cap unrealistic technical outliers (e.g. ASR glitching 2 words into 0.1s)
+                wpm = min(wpm, 350)
+                
+                timeline.append({
+                    'time': start,
+                    'wpm': round(wpm)
+                })
+                
+        print(f"✅ Generated {len(timeline)} segment-based timeline points.")
         return timeline
     
     def get_speech_metrics(self, transcript_id: str) -> Optional[Dict[str, Any]]:

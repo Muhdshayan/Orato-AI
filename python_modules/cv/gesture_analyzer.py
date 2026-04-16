@@ -120,8 +120,8 @@ def calculate_gesture_frequency(pose_data: List[Dict], fps: float) -> Dict:
                     wrist_positions[hand].append([np.nan, np.nan, np.nan])
             timestamps.append(frame['timestamp'])
     
-    total_gestures = 0
     gesture_segments = []  # For per-gesture NJC calculation
+    all_peak_timestamps = [] # Track timestamps for deduplication
     
     for hand in ['left','right']:
         positions = np.array(wrist_positions[hand])
@@ -147,7 +147,13 @@ def calculate_gesture_frequency(pose_data: List[Dict], fps: float) -> Dict:
         threshold = mean_vel * config.VELOCITY_PEAK_THRESHOLD_MULTIPLIER
         
         peaks, _ = signal.find_peaks(velocities, height=threshold, distance=int(fps * 0.5))
-        total_gestures += len(peaks)
+        
+        # Track valid peak timestamps to deduplicate 2-handed simultaneous gestures
+        for peak_idx in peaks:
+            pos_idx = peak_idx + 1
+            if pos_idx < len(valid_timestamps):
+                all_peak_timestamps.append(valid_timestamps[pos_idx])
+        
         
         # Extract gesture segments (±0.5s around each peak)
         window = int(fps * 0.5)
@@ -166,6 +172,16 @@ def calculate_gesture_frequency(pose_data: List[Dict], fps: float) -> Dict:
                     'timestamps': valid_timestamps[start_idx:end_idx]
                 })
     
+    # Deduplicate simultaneous gestures (within 0.5s of each other)
+    all_peak_timestamps.sort()
+    total_gestures = 0
+    last_peak_time = -1000.0
+    
+    for t in all_peak_timestamps:
+        if t - last_peak_time > 0.5:
+            total_gestures += 1
+            last_peak_time = t
+            
     duration_minutes = timestamps[-1] / 60.0 if timestamps else 1.0
     gpm = total_gestures / duration_minutes if duration_minutes > 0 else 0.0
     
@@ -235,6 +251,14 @@ def calculate_normalized_jerk_cost(trajectory: np.ndarray, timestamps: np.ndarra
     PHYSICAL_SCALE = 0.5  # meters
     traj_physical = trajectory * PHYSICAL_SCALE
     
+    # Smooth the trajectory using a Savitzky-Golay filter.
+    # Raw mediapipe points have frame-to-frame pixel jitter. Jerk (3rd derivative) amplifies this jitter cubed.
+    # We must filter the noise before evaluating physics.
+    if len(traj_physical) >= 7:
+        window = 5 # must be odd
+        for dim in range(traj_physical.shape[1]):
+            traj_physical[:, dim] = signal.savgol_filter(traj_physical[:, dim], window, 2)
+            
     # Calculate jerk values using physical coordinates
     jerks = geometry_utils.calculate_jerk(traj_physical, timestamps)
     
@@ -245,8 +269,9 @@ def calculate_normalized_jerk_cost(trajectory: np.ndarray, timestamps: np.ndarra
     distances = [geometry_utils.calculate_distance(traj_physical[i], traj_physical[i+1])for i in range(len(traj_physical)-1)]
     total_length = sum(distances)
     
-    if total_length < 1e-6:
-        return 0.0
+    # Prevent divide-by-zero or mathematical noise amplification on tiny jitters
+    # A tiny movement of less than 5cm total distance is jitter, not a fluid sweeping gesture.
+    safe_length = max(total_length, 0.05)
     
     # Total duration
     duration = timestamps[-1] - timestamps[0]
@@ -259,7 +284,7 @@ def calculate_normalized_jerk_cost(trajectory: np.ndarray, timestamps: np.ndarra
     
     # Normalized jerk cost formula (Flash & Hogan 1985)
     # With physical units (meters, seconds), calculates raw NJC
-    njc_raw = np.sqrt((duration ** 5) / (2 * total_length ** 2) * jerk_squared_integral)
+    njc_raw = np.sqrt((duration ** 5) / (2 * safe_length ** 2) * jerk_squared_integral)
     
     # Empirical normalization to 0-1 range
     # Typical gestures yield raw NJC of 200-1200 after physical scaling
