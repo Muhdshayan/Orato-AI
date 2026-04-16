@@ -81,6 +81,13 @@ minio-data/
 *.heic
 *.raw
 
+# Keep required frontend branding assets tracked
+!frontend/public/logo/
+!frontend/public/logo/*.png
+!frontend/public/logo/*.svg
+!frontend/public/team/
+!frontend/public/team/*.jpg
+
 
 # Logs
 logs/

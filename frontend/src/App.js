@@ -43,7 +43,7 @@ function AppContent() {
 
   const auroraStops = theme === 'dark'
     ? ['#cee54e', '#f5c400', '#fee556']
-    : ['#d9c678', '#c7d9e7', '#e0c99a'];
+    : ['#fff1a8', '#ffd84d', '#ffc42e'];
 
   // Save session
   useEffect(() => {
@@ -68,24 +68,28 @@ function AppContent() {
         {/* GLOBAL BACKGROUND - The "Alive" Effect */}
         <Aurora 
           colorStops={auroraStops}
-          blend={theme === 'dark' ? 0.35 : 0.18}
-          amplitude={theme === 'dark' ? 1.05 : 0.5}
+          blend={theme === 'dark' ? 0.35 : 0.24}
+          amplitude={theme === 'dark' ? 1.05 : 0.62}
           speed={0.6}
         />
 
         <Toaster 
           position="top-right" 
           toastOptions={{
-            style: { background: '#18181b', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' },
-            success: { iconTheme: { primary: '#34d399', secondary: '#000' } },
-            error: { iconTheme: { primary: '#f87171', secondary: '#fff' } }
+            style: {
+              background: 'var(--toaster-bg)',
+              color: 'var(--toaster-text)',
+              border: '1px solid var(--toaster-border)'
+            },
+            success: { iconTheme: { primary: 'var(--success)', secondary: 'var(--background-primary)' } },
+            error: { iconTheme: { primary: 'var(--danger)', secondary: 'var(--text-primary)' } }
           }} 
         />
         
         {/* Only show Header if logged in, otherwise Landing/Auth pages have their own layouts */}
         {isAuthenticated && <Header user={user} onSignOut={handleSignOut} theme={theme} onToggleTheme={toggleTheme} />}
         
-        <div style={{ minHeight: isAuthenticated ? 'calc(100vh - 70px)' : '100vh' }}>
+        <div style={{ minHeight: '100vh', paddingTop: isAuthenticated ? '88px' : '0' }}>
           <Routes>
             {/* Landing Page (Public) */}
             <Route 

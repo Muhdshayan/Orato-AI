@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bot, User, LogOut, Upload, Clock, SunMedium, MoonStar } from 'lucide-react';
+import { User, LogOut, Upload, Clock, SunMedium, MoonStar } from 'lucide-react';
 
 const NavLink = ({ to, icon, label, isActive }) => (
   <Link
@@ -26,12 +26,46 @@ const NavLink = ({ to, icon, label, isActive }) => (
 
 const Header = ({ user, onSignOut, theme = 'dark', onToggleTheme }) => {
   const location = useLocation();
+  const [isHidden, setIsHidden] = useState(false);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const y = window.scrollY || 0;
+      const delta = y - lastScrollY.current;
+
+      if (y < 24) {
+        setIsHidden(false);
+      } else if (delta > 8) {
+        setIsHidden(true);
+      } else if (delta < -8) {
+        setIsHidden(false);
+      }
+
+      lastScrollY.current = y;
+    };
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 50 }}>
+    <header
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 1200,
+        background: 'transparent',
+        borderBottom: '0',
+        transform: isHidden ? 'translateY(-115%)' : 'translateY(0)',
+        transition: 'transform 0.3s ease'
+      }}
+    >
       <div
         style={{
-          padding: '20px 24px 14px',
+          padding: '12px 24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -42,12 +76,20 @@ const Header = ({ user, onSignOut, theme = 'dark', onToggleTheme }) => {
       >
         
         {/* Logo Area */}
-        <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
-          <img
-            src="/logo/logo.png"
-            alt="Orato AI logo"
-            style={{ height: 44, width: 'auto', display: 'block' }}
-          />
+        <Link
+          to="/"
+          className="navbar-brand-link"
+          style={{ textDecoration: 'none', cursor: 'pointer' }}
+          aria-label="Go to home"
+        >
+          <div className="navbar-brand-wrap">
+            <img
+              src="/logo/logo1.png"
+              alt="Orato AI logo"
+              className="navbar-brand-logo"
+            />
+            <span className="navbar-brand-text">OratoAI</span>
+          </div>
         </Link>
 
         {/* Navigation */}
