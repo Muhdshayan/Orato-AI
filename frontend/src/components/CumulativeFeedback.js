@@ -99,7 +99,7 @@ const CumulativeFeedback = ({ submissionId }) => {
         ],
         backgroundColor: 'rgba(245, 196, 0, 0.2)',
         borderColor: '#f5c400',
-        pointBackgroundColor: '#fff',
+        pointBackgroundColor: '#f8fafc',
         borderWidth: 2,
       }]
     };
@@ -108,8 +108,8 @@ const CumulativeFeedback = ({ submissionId }) => {
   const radarOptions = {
     scales: {
       r: {
-        angleLines: { color: 'rgba(255,255,255,0.1)' },
-        grid: { color: 'rgba(255,255,255,0.1)' },
+        angleLines: { color: 'rgba(148,163,184,0.25)' },
+        grid: { color: 'rgba(148,163,184,0.25)' },
         pointLabels: { color: '#94a3b8', font: { size: 11, family: 'Space Grotesk' } },
         ticks: { display: false, stepSize: 20 },
         suggestedMin: 0,
@@ -186,7 +186,6 @@ const CumulativeFeedback = ({ submissionId }) => {
            <h1 style={{ margin: 0, fontSize: '2.5rem', fontWeight: 800 }}>OratoAI Presentation Mastery Report</h1>
            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 15 }}>
              <div>
-               <p style={{ margin: '4px 0', fontSize: '1.1rem' }}><strong>Session ID:</strong> {submissionId}</p>
                <p style={{ margin: '4px 0', fontSize: '1.1rem' }}><strong>Date Generated:</strong> {new Date().toLocaleDateString()}</p>
              </div>
              <div style={{ textAlign: 'right' }}>

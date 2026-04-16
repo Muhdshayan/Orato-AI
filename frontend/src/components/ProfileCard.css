@@ -409,6 +409,59 @@
   -webkit-text-fill-color: currentColor;
 }
 
+[data-theme="light"] .pc-card {
+  background: linear-gradient(160deg, rgba(255, 253, 247, 0.98), rgba(245, 236, 219, 0.92));
+  border-color: rgba(61, 49, 28, 0.14);
+  box-shadow: rgba(66, 47, 12, 0.18) calc((var(--pointer-from-left) * 7px) - 2px)
+    calc((var(--pointer-from-top) * 12px) - 3px) 24px -10px;
+}
+
+[data-theme="light"] .pc-inside {
+  background-color: rgba(255, 253, 247, 0.98);
+}
+
+[data-theme="light"] .pc-shine {
+  mix-blend-mode: screen;
+}
+
+[data-theme="light"] .pc-glare {
+  background-image: radial-gradient(
+    farthest-corner circle at var(--pointer-x) var(--pointer-y),
+    rgba(245, 196, 0, 0.16) 10%,
+    rgba(245, 196, 0, 0.05) 42%,
+    rgba(255, 255, 255, 0.2) 100%
+  );
+}
+
+[data-theme="light"] .pc-user-info {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(61, 49, 28, 0.14);
+}
+
+[data-theme="light"] .pc-mini-avatar {
+  border-color: rgba(61, 49, 28, 0.16);
+}
+
+[data-theme="light"] .pc-status,
+[data-theme="light"] .pc-details p {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .pc-contact-btn {
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(61, 49, 28, 0.16);
+}
+
+[data-theme="light"] .pc-contact-btn:hover {
+  background: rgba(245, 196, 0, 0.14);
+  border-color: rgba(245, 196, 0, 0.36);
+}
+
+[data-theme="light"] .pc-details h3 {
+  background-image: linear-gradient(to bottom, var(--ink), color-mix(in srgb, var(--accent-strong) 75%, var(--ink) 25%));
+}
+
 @media (max-width: 768px) {
   .pc-card {
     min-height: 380px;

@@ -36,7 +36,7 @@ const AnalysisResults = () => {
           borderRadius: 20,
           position: 'relative',
           overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(245,196,0,0.2), rgba(255,255,255,0.02) 45%, rgba(0,0,0,0.08))'
+          background: 'linear-gradient(135deg, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--panel) 94%, transparent) 45%, color-mix(in srgb, var(--panel) 82%, var(--accent-soft) 18%))'
         }}
       >
         <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 85% 20%, rgba(245,196,0,0.22), transparent 40%)', pointerEvents: 'none' }} />
@@ -46,7 +46,7 @@ const AnalysisResults = () => {
               <Sparkles size={15} /> Intelligent Review
             </p>
             <h2 style={{ fontSize: 'clamp(2rem, 4vw, 2.9rem)', margin: '0 0 8px', lineHeight: 1.05 }}>Performance Analysis Hub</h2>
-            <p style={{ margin: 0, color: 'var(--text-muted)' }}>Session {submissionId?.split('-')?.[0]} · {active?.label}</p>
+            <p style={{ margin: 0, color: 'var(--text-muted)' }}>{active?.label}</p>
           </div>
           <div style={{ display: 'grid', gap: 8, minWidth: 230 }}>
             <div className="hero-meta"><Activity size={15} /> Active Module: {active?.label}</div>

@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children }) => {
         flexDirection: 'column',
         alignItems: 'center', 
         justifyContent: 'center',
-        background: 'var(--bg-app)'
+        background: 'var(--bg)'
       }}>
         <div className="spinner" style={{ width: '48px', height: '48px', borderWidth: '4px' }}></div>
         <p style={{ marginTop: '20px', color: 'var(--text-muted)', fontFamily: 'var(--font-display)', letterSpacing: '0.05em' }}>
