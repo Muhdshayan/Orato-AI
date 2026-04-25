@@ -347,11 +347,7 @@ export function ContentRelevanceDashboard({ submissionId }) {
                             </a>
                           ))}
                         </div>
-                      ) : (
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: 0 }}>
-                          No web evidence links available for this fact.
-                        </p>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </article>

@@ -25,7 +25,7 @@ def calculate_individual_scores(metrics: Dict) -> Dict:
     
     # 1. Craniocervical Angle Score
     cca = metrics.get('posture', {}).get('craniocervical_angle', {})
-    if cca.get('mean'):
+    if cca.get('mean') is not None:
         cca_mean = cca['mean']
         # Score based on distance from optimal range
         if config.CCA_NORMAL_MIN <= cca_mean <= config.CCA_NORMAL_MAX:
@@ -67,6 +67,9 @@ def calculate_individual_scores(metrics: Dict) -> Dict:
         scores['eye_contact_score'] = max(0, 100 - deviation * 1.5)
     
     # 5. Gesture Frequency Score
+    # Logarithmic decay: gentle curve so slightly elevated GPM (e.g. 38) still earns
+    # a fair partial score instead of snapping near-zero.
+    # Curve: GPM=16→100, GPM=25→~60, GPM=38→~42, GPM=55→~30
     gpm = metrics.get('gestures', {}).get('gesture_frequency', {}).get('gestures_per_minute', 0)
     if config.GPM_MIN_OPTIMAL <= gpm <= config.GPM_MAX_OPTIMAL:
         scores['gpm_score'] = 100.0
@@ -75,7 +78,9 @@ def calculate_individual_scores(metrics: Dict) -> Dict:
             deviation = config.GPM_MIN_OPTIMAL - gpm
         else:
             deviation = gpm - config.GPM_MAX_OPTIMAL
-        scores['gpm_score'] = max(0, 100 - deviation * 5)
+        import math
+        scores['gpm_score'] = max(0, 100 - 20 * math.log1p(deviation / 2))
+
     
     # 6. Hand Visibility Score
     hand_vis = metrics.get('gestures', {}).get('hand_visibility', {}).get('any_hand_percentage', 0)

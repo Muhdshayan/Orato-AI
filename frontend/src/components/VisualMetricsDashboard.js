@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { videoAPI } from '../services/api'; // Ensure this matches your import path
+import { videoAPI, reportAPI } from '../services/api'; // Ensure this matches your import path
 import { Radar, Line } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
 import {
@@ -24,7 +24,7 @@ ChartJS.register(
 ChartJS.defaults.color = '#64748b';
 ChartJS.defaults.borderColor = 'rgba(148,163,184,0.32)';
 
-const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold)', delay = 0 }, ref) => (
+const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold)', description, delay = 0 }, ref) => (
   <motion.div
     className="card"
     ref={ref}
@@ -32,14 +32,19 @@ const KPI = React.forwardRef(({ label, value, suffix, color = 'var(--accent-gold
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay: delay }}
     whileHover={{ y: -5, borderColor: color }}
-    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px' }}
+    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px', padding: '16px' }}
   >
-    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px', fontFamily: 'Space Grotesk' }}>
+    <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px', fontFamily: 'Space Grotesk' }}>
       {label}
     </div>
-    <div style={{ fontSize: '3rem', fontWeight: 700, color: color, lineHeight: 1, fontFamily: 'Space Grotesk' }}>
+    <div style={{ fontSize: '3rem', fontWeight: 700, color: color, lineHeight: 1, fontFamily: 'Space Grotesk', marginBottom: description ? '10px' : '0px' }}>
       {value}<span style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}>{suffix}</span>
     </div>
+    {description && (
+      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.3 }}>
+        {description}
+      </div>
+    )}
   </motion.div>
 ));
 KPI.displayName = 'KPI';
@@ -56,6 +61,7 @@ const formatClock = (seconds) => {
 const VisualMetricsDashboard = ({ submissionId }) => {
   const [data, setData] = useState(null);
   const [files, setFiles] = useState(null);
+  const [aiInsights, setAiInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [videoTime, setVideoTime] = useState(0);
   const [videoDuration, setVideoDuration] = useState(0);
@@ -93,6 +99,12 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       }
     };
     fetchData();
+
+    // Fetch Modular AI Visual Insights
+    reportAPI.getVisualInsights(submissionId)
+      .then(res => setAiInsights(res.insights || []))
+      .catch(err => console.error("Failed to load visual AI insights", err));
+
     return () => { isMounted = false; };
   }, [submissionId]);
 
@@ -106,28 +118,27 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     const scores = data.individual_scores;
 
     return {
-      labels: ['Posture', 'Eye Contact', 'Gestures', 'Stability', 'Hand Vis.'],
+      labels: ['Posture', 'Eye Contact', 'Gestures', 'Stability', 'Hand Vis.', 'Smoothness'],
       datasets: [{
         label: 'Performance Score',
         data: [
           // 1. Posture: Already 0-100
-          scores.cca_score || 0,
+          clamp(scores.cca_score || 0, 0, 100),
 
-          // 2. Eye Contact: Already 0-100 (if it's percentage)
-          // CHECK: If your JSON sends 0.88 for 88%, multiply by 100. 
-          // Based on your JSON, 'eye_contact_score' is ~11.3, so it's likely already scaled 0-100.
-          scores.eye_contact_score || 0,
+          // 2. Eye Contact: Scale fraction or percentages correctly
+          clamp(scores.eye_contact_score || 0, 0, 100),
 
-          // 3. Gestures: This was likely the issue. 
-          // If GPM is raw (e.g., 60), it fits. If it's a score (0-1), it needs scaling.
-          // Assuming 'gpm_score' is the calculated 0-100 score from your backend.
-          scores.gpm_score || 0,
+          // 3. Gestures: Needs bounding 
+          clamp(scores.gpm_score || 0, 0, 100),
 
           // 4. Stability: Already 0-100
-          scores.slouch_score || 0,
+          clamp(scores.slouch_score || 0, 0, 100),
 
           // 5. Hand Visibility: Already 0-100
-          scores.hand_visibility_score || 0
+          clamp(scores.hand_visibility_score || 0, 0, 100),
+          
+          // 6. Smoothness: Newly added to form Hexagon
+          clamp(scores.smoothness_score || 0, 0, 100)
         ],
         backgroundColor: 'rgba(245, 158, 11, 0.2)',
         borderColor: '#F59E0B',
@@ -247,10 +258,13 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     const ccaStd = std(ccaValues);
     const neckStd = std(neckValues);
 
-    const neckWarn = 20;
-    const neckCritical = 28;
-    const ccaWarnLow = 46;
-    const ccaCriticalLow = 40;
+    // Thresholds aligned with config.py research-backed values:
+    // CCA: NORMAL_MIN=48, SLOUCH_THRESHOLD=42
+    // Neck Flexion: NORMAL_MAX=15, THRESHOLD=20
+    const neckWarn = 20;       // config.NECK_FLEXION_THRESHOLD
+    const neckCritical = 28;   // sustained severe forward head
+    const ccaWarnLow = 44;     // between CCA_SLOUCH_THRESHOLD(42) and CCA_NORMAL_MIN(48)
+    const ccaCriticalLow = 42; // config.CCA_SLOUCH_THRESHOLD — severe slouch
 
     const riskLabelForPoint = (p) => {
       if (p.neck >= neckCritical || p.cca <= ccaCriticalLow) return 'critical';
@@ -338,7 +352,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
 
   const score = data.overall_score || 0;
 
-  const lineOptions = {
+  const defaultLineOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(0,0,0,0.85)' } },
@@ -349,7 +363,34 @@ const VisualMetricsDashboard = ({ submissionId }) => {
     interaction: { mode: 'index', intersect: false }
   };
 
-  const insights = [
+  const postureLineOptions = {
+    ...defaultLineOptions,
+    scales: {
+      ...defaultLineOptions.scales,
+      y: {
+        ...defaultLineOptions.scales.y,
+        min: 20,
+        max: 100,
+        title: { display: true, text: 'Angle (48°-55° = Target)', color: '#10b981', font: { size: 10 } }
+      }
+    }
+  };
+
+  const flexionLineOptions = {
+    ...defaultLineOptions,
+    scales: {
+      ...defaultLineOptions.scales,
+      y: {
+        ...defaultLineOptions.scales.y,
+        min: -5,
+        max: 60,
+        title: { display: true, text: 'Degrees (0°-15° = Target)', color: '#10b981', font: { size: 10 } }
+      }
+    }
+  };
+
+  // Replaced hardcoded insights with AI generated modular insights
+  const displayInsights = aiInsights && aiInsights.length > 0 ? aiInsights : [
     data.head_pose?.eye_contact_percentage ? `${data.head_pose.eye_contact_percentage.toFixed(1)}% eye contact—hold gaze on key points.` : null,
     data.gestures?.hand_visibility?.any_hand_percentage ? `${data.gestures.hand_visibility.any_hand_percentage.toFixed(0)}% hand visibility—good for emphasis.` : null,
     data.posture?.slouch_duration?.slouch_percentage !== undefined ? `${data.posture.slouch_duration.slouch_percentage.toFixed(1)}% slouch time—keep spine tall.` : null,
@@ -369,7 +410,8 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           ref={heroRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 0%, rgba(245,196,0,0.08), transparent 55%)', pointerEvents: 'none' }} />
-          <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>VISUAL IMPACT SCORE</h3>
+          <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '4px' }}>VISUAL IMPACT SCORE</h3>
+          <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>Aggregated body language & presentation posture</p>
           <div style={{
             fontSize: '6rem', fontWeight: 800, lineHeight: 1,
             color: 'var(--accent-gold)', margin: '20px 0'
@@ -393,9 +435,10 @@ const VisualMetricsDashboard = ({ submissionId }) => {
           style={{ background: 'var(--panel)', border: '1px solid var(--border)', padding: '20px 20px 18px' }}
           ref={radarRef}
         >
-          <h3 style={{ marginBottom: 20, fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Metric Balance</h3>
+          <h3 style={{ marginBottom: 4, fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Metric Balance</h3>
+          <p style={{ margin: '0 0 16px 2px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Skill distribution across behavioral limits</p>
           <div style={{ height: '300px', display: 'flex', justifyContent: 'center' }}>
-            {radarData && <Radar data={radarData} options={{ scales: { r: { ticks: { display: false }, grid: { color: 'rgba(148,163,184,0.22)' } } }, plugins: { legend: { display: false } } }} />}
+            {radarData && <Radar data={radarData} options={{ scales: { r: { min: 0, max: 100, ticks: { display: false }, grid: { color: 'rgba(148,163,184,0.22)' } } }, plugins: { legend: { display: false } } }} />}
           </div>
         </motion.div>
       </div>
@@ -404,6 +447,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
         <KPI
           label="Eye Contact"
+          description="Percentage of time spent engaging the camera"
           value={data.head_pose?.eye_contact_percentage?.toFixed(1)}
           suffix="%"
           ref={(el) => { kpiRefs.current[0] = el; }}
@@ -411,6 +455,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Hand Usage"
+          description="Percentage of time hands were kept visible in frame"
           value={data.gestures?.hand_visibility?.any_hand_percentage?.toFixed(0)}
           suffix="%"
           color="#fb923c"
@@ -419,6 +464,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Gestures/Min"
+          description="Total physical pacing frequency (Optimal: 10-16 Gestures Per Minute)"
           value={data.gestures?.gesture_frequency?.gestures_per_minute?.toFixed(1)}
           suffix=""
           ref={(el) => { kpiRefs.current[2] = el; }}
@@ -426,6 +472,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Slouching"
+          description="Percentage of time collapsed forward below 20°"
           value={data.posture?.slouch_duration?.slouch_percentage?.toFixed(1)}
           suffix="%"
           color={data.posture?.slouch_duration?.slouch_percentage > 10 ? '#f87171' : '#34d399'}
@@ -438,6 +485,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 24 }}>
         <KPI
           label="Head Pitch (Nodding)"
+          description="How much you look up or down while speaking"
           value={Math.abs(data.head_pose?.pitch?.mean || 0).toFixed(1)}
           suffix="°"
           color="#a78bfa"
@@ -445,6 +493,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Head Yaw (Turning)"
+          description="How much you turn your head side to side"
           value={Math.abs(data.head_pose?.yaw?.mean || 0).toFixed(1)}
           suffix="°"
           color="#a78bfa"
@@ -452,6 +501,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Motion Energy"
+          description="How lively and dynamic your overall body language is"
           value={data.motion_energy?.burstiness_metrics?.burstiness?.toFixed(2)}
           suffix=""
           color="#22d3ee"
@@ -459,8 +509,9 @@ const VisualMetricsDashboard = ({ submissionId }) => {
         />
         <KPI
           label="Smoothness (NJC)"
+          description="Measures if your gestures are fluid or jerky (Lower is better)"
           value={((data.gestures?.motion_smoothness?.mean_njc || 0)).toFixed(1)}
-          suffix="M"
+          suffix=""
           color="#f472b6"
           delay={0.45}
         />
@@ -478,12 +529,17 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             style={{ padding: '20px 20px 18px' }}
             ref={postureRef}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Posture Stability</h3>
-              <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Craniocervical Angle</div>
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)', margin: 0 }}>Posture Stability</h3>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Craniocervical Angle</div>
+              </div>
+              <p style={{ margin: '0 0 0 2px', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                The Craniocervical Angle measures the physical alignment between your ear and the base of your neck. It tracks how straight you hold your spine over time. Aim to keep the line inside the green target zone (48°-55°).
+              </p>
             </div>
             <div style={{ height: '250px', width: '100%' }}>
-              <Line data={postureTimelineData} options={lineOptions} />
+              <Line data={postureTimelineData} options={postureLineOptions} />
             </div>
           </motion.div>
         )}
@@ -498,12 +554,17 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             style={{ padding: '20px 20px 18px' }}
             ref={flexionRef}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)' }}>Neck Flexion Analysis</h3>
-              <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Flexion (Degrees)</div>
+            <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ fontSize: '1.2rem', lineHeight: 1.3, paddingLeft: 2, color: 'var(--text-main)', margin: 0 }}>Neck Flexion Analysis</h3>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Flexion (Degrees)</div>
+              </div>
+              <p style={{ margin: '0 0 0 2px', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                Tracks if your head is slouching forward. Avoid spiking up past 20°.
+              </p>
             </div>
             <div style={{ height: '250px', width: '100%' }}>
-              <Line data={neckFlexionData} options={lineOptions} />
+              <Line data={neckFlexionData} options={flexionLineOptions} />
             </div>
           </motion.div>
         )}
@@ -626,7 +687,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
       </details>
 
       {/* Row 6: Feedback Section */}
-      {insights.length > 0 && (
+      {displayInsights.length > 0 && (
         <motion.div
           className="card"
           initial={{ opacity: 0, y: 12 }}
@@ -639,7 +700,7 @@ const VisualMetricsDashboard = ({ submissionId }) => {
             <h3 style={{ margin: 0 }}>Visual Insights</h3>
             <span className="pill pill-gold" style={{ margin: 0 }}>Auto-generated</span>
           </div>
-          {insights.map((line, idx) => (
+          {displayInsights.map((line, idx) => (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', marginBottom: 10 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />
               <span style={{ color: 'var(--ink)' }}>{line}</span>
