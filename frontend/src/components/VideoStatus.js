@@ -491,7 +491,7 @@ const VideoStatus = () => {
       <header className="vsc-topbar" data-vsc-entrance>
         <div className="vsc-topbar-copy">
           <h1>Analysis in Progress</h1>
-          <p>Session {status.submission_id} · Synced {new Date(lastSyncedAt).toLocaleTimeString()}</p>
+          <p>Synced at {new Date(lastSyncedAt).toLocaleTimeString()}</p>
         </div>
 
         <div className={`vsc-status-pill ${currentStatus.badge}`}>

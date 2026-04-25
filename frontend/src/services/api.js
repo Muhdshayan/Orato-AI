@@ -3,11 +3,17 @@ import axios from 'axios';
 // Create axios instance with base configuration
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
-  timeout: 30000, // 30 seconds timeout for file uploads
+  timeout: 30000, 
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Lightweight cache for modular AI insights
+const insightsCache = {
+  visual: {},
+  delivery: {}
+};
 
 // Request interceptor to add auth token if needed
 api.interceptors.request.use(
@@ -186,6 +192,23 @@ export const reportAPI = {
   generateReport: async (submissionId) => {
     const response = await api.post(`/api/v1/reports/${submissionId}/generate`);
     return response.data;
+  },
+  getVisualInsights: async (submissionId) => {
+    if (insightsCache.visual[submissionId]) return insightsCache.visual[submissionId];
+    const response = await api.get(`/api/v1/reports/${submissionId}/visual-insights`);
+    insightsCache.visual[submissionId] = response.data;
+    return response.data;
+  },
+  getDeliveryInsights: async (submissionId) => {
+    if (insightsCache.delivery[submissionId]) return insightsCache.delivery[submissionId];
+    const response = await api.get(`/api/v1/reports/${submissionId}/delivery-insights`);
+    insightsCache.delivery[submissionId] = response.data;
+    return response.data;
+  },
+  downloadReport: async (submissionId) => {
+    // We use a direct window.open or a blob fetch here for PDF
+    const url = `${api.defaults.baseURL}/api/v1/reports/${submissionId}/download`;
+    window.open(url, '_blank');
   }
 };
 
