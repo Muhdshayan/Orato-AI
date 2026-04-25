@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { reportAPI, transcriptAPI, videoAPI } from '../services/api';
+import api from '../services/api';
 import { Radar } from 'react-chartjs-2';
 import { 
   Chart as ChartJS,
@@ -31,9 +32,11 @@ const CumulativeFeedback = ({ submissionId }) => {
   const [report, setReport] = useState(null);
   const [speechMetrics, setSpeechMetrics] = useState(null);
   const [visualMetrics, setVisualMetrics] = useState(null);
+  const [contentRelevance, setContentRelevance] = useState(null);
   const [transcript, setTranscript] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingReport, setDownloadingReport] = useState(false);
 
   const fetchAllData = async () => {
     setLoading(true);
@@ -49,10 +52,18 @@ const CumulativeFeedback = ({ submissionId }) => {
       setSpeechMetrics(speechData);
       setVisualMetrics(visualData);
       setTranscript(transcriptData);
+      
+      // Fetch content relevance separately (non-fatal if missing)
+      try {
+        const crData = await api.get(`/api/v1/content-relevance/submission/${submissionId}`);
+        setContentRelevance(crData.data);
+      } catch (_) {
+        setContentRelevance(null);
+      }
+      
       setError(null);
     } catch (err) {
       console.error('Error fetching data for mega report:', err);
-      // Fallback: strictly try to just get the report if others fail (non-fatal)
       try {
         const reportOnly = await reportAPI.getReport(submissionId);
         setReport(reportOnly);
@@ -76,26 +87,46 @@ const CumulativeFeedback = ({ submissionId }) => {
     }
   };
 
-  const handleDownload = () => {
-    window.print();
+  const handleDownload = async () => {
+    try {
+      setDownloadingReport(true);
+      await reportAPI.downloadReport(submissionId);
+    } catch (err) {
+      console.error('Failed to download report:', err);
+    } finally {
+      setTimeout(() => setDownloadingReport(false), 2000);
+    }
   };
 
   useEffect(() => {
     fetchAllData();
   }, [submissionId]);
 
+  // Bug 1 Fix: Build radar from real individual metric scores
   const radarData = useMemo(() => {
-    if (!report) return null;
+    if (!speechMetrics && !visualMetrics) return null;
+    
+    const clamp = (v, min, max) => Math.min(max, Math.max(min, v || 0));
+    
+    // Vocal Pacing: scale WPM 110-150 = 100, penalties outside
+    const wpm = speechMetrics?.speech_rate || 0;
+    const vocalPacing = wpm >= 110 && wpm <= 150 ? 100 : Math.max(0, 100 - Math.abs(wpm - 130) * 1.2);
+    
+    const fluency = clamp(speechMetrics?.fluency_score, 0, 100);
+    const visualPresence = clamp(visualMetrics?.individual_scores?.eye_contact_score, 0, 100);
+    const gestureControl = clamp(visualMetrics?.individual_scores?.gpm_score, 0, 100);
+    const contentAccuracy = clamp(contentRelevance?.topic_match_score * 100, 0, 100);
+    
     return {
       labels: ['Vocal Pacing', 'Fluency', 'Visual Presence', 'Gesture Control', 'Content Accuracy'],
       datasets: [{
         label: 'Skill Proficiency',
         data: [
-          Math.min(100, report.overall_score * 0.9),
-          Math.min(100, report.overall_score * 1.1),
-          Math.min(100, report.overall_score * 0.8),
-          Math.min(100, report.overall_score),
-          Math.min(100, report.overall_score * 1.05)
+          Math.round(vocalPacing),
+          Math.round(fluency),
+          Math.round(visualPresence),
+          Math.round(gestureControl),
+          Math.round(contentAccuracy)
         ],
         backgroundColor: 'rgba(245, 196, 0, 0.2)',
         borderColor: '#f5c400',
@@ -103,7 +134,7 @@ const CumulativeFeedback = ({ submissionId }) => {
         borderWidth: 2,
       }]
     };
-  }, [report]);
+  }, [speechMetrics, visualMetrics, contentRelevance]);
 
   const radarOptions = {
     scales: {
@@ -141,6 +172,14 @@ const CumulativeFeedback = ({ submissionId }) => {
     );
   }
 
+  // Bug 4 Fix: Consistent rating label aligned with backend research thresholds
+  const getRatingLabel = (score) => {
+    if (score >= 85) return 'Elite Communicator';
+    if (score >= 70) return 'Good Standing';
+    if (score >= 55) return 'Needs Improvement';
+    return 'Below Standard';
+  };
+
   const { overall_score, feedback } = report;
 
   return (
@@ -172,12 +211,12 @@ const CumulativeFeedback = ({ submissionId }) => {
             <div style={{ paddingBottom: 10 }}>
               <span style={{ fontSize: '1.2rem', color: 'var(--text-muted)', display: 'block', fontWeight: 500 }}>/ 100</span>
               <div className="pill pill-gold no-print" style={{ fontSize: '0.8rem', padding: '4px 10px' }}>
-                {overall_score >= 85 ? 'Elite Communicator' : overall_score >= 70 ? 'Expert Presentation' : 'Skilled Emerging'}
+                {getRatingLabel(overall_score)}
               </div>
             </div>
           </div>
           <button onClick={handleDownload} className="pill no-print" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', cursor: 'pointer', color: 'var(--ink)' }}>
-            <Download size={16} /> Download Mega Report
+            <Download size={16} /> {downloadingReport ? 'Downloading...' : 'Download Mega Report'}
           </button>
         </div>
 
@@ -281,8 +320,9 @@ const CumulativeFeedback = ({ submissionId }) => {
               <Video size={18} /> Biometric & Kinesics
             </h5>
             <div style={{ display: 'grid', gap: 12, fontSize: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Eye Contact:</span> <strong>{visualMetrics?.individual_scores?.eye_contact_score?.toFixed(1) || 'N/A'}%</strong></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Posture Alignment:</span> <strong>{visualMetrics?.individual_scores?.cca_score?.toFixed(1) || 'N/A'}%</strong></div>
+              {/* Bug 2 Fix: Show actual eye contact % not the 0-100 score */}
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Eye Contact:</span> <strong>{visualMetrics?.head_pose?.eye_contact_percentage?.toFixed(1) || 'N/A'}%</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Posture Alignment:</span> <strong>{visualMetrics?.individual_scores?.cca_score?.toFixed(1) || 'N/A'}/100</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Hand Openness:</span> <strong>{visualMetrics?.individual_scores?.hand_visibility_score?.toFixed(1) || 'N/A'}%</strong></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}><span>Visual Authority:</span> <strong style={{ color: '#34d399' }}>{visualMetrics?.overall_score?.toFixed(1) || 0}/100</strong></div>
             </div>
@@ -293,10 +333,11 @@ const CumulativeFeedback = ({ submissionId }) => {
             <h5 style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#fbbf24', marginBottom: 16, fontSize: '1.1rem' }}>
               <BookOpen size={18} /> Content Mastery
             </h5>
+            {/* Bug 3 Fix: Real content relevance data + fix "Verfied" typo */}
             <div style={{ display: 'grid', gap: 12, fontSize: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Topic Alignment:</span> <strong>Highly Relevant</strong></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Information Accuracy:</span> <strong>Verfied</strong></div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}><span>Relevance Score:</span> <strong style={{ color: '#34d399' }}>{overall_score >= 70 ? 'Advanced' : 'Sufficient'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Topic Alignment:</span> <strong>{contentRelevance ? (contentRelevance.topic_match_score >= 0.8 ? 'Highly Relevant' : contentRelevance.topic_match_score >= 0.5 ? 'Relevant' : 'Off-Topic') : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Factual Accuracy:</span> <strong>{contentRelevance ? `${Math.round((contentRelevance.factual_accuracy || 0) * 100)}%` : 'N/A'}</strong></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}><span>Relevance Score:</span> <strong style={{ color: '#34d399' }}>{contentRelevance ? `${contentRelevance.overall_relevance_score ?? Math.round((((contentRelevance.topic_match_score || 0) + (contentRelevance.factual_accuracy || 0)) / 2) * 100)}/100` : 'N/A'}</strong></div>
             </div>
           </div>
         </div>
@@ -317,7 +358,8 @@ const CumulativeFeedback = ({ submissionId }) => {
             borderRadius: 15,
             border: '1px solid rgba(255,255,255,0.05)'
           }}>
-            {transcript?.text || 'Standard transcript data is loaded from session history.'}
+          {/* Bug 5 Fix: Hardened transcript key lookup across all possible API response shapes */}
+          {transcript?.full_text || transcript?.text || transcript?.transcript || transcript?.content || 'Transcript not available for this session.'}
           </div>
         </div>
         

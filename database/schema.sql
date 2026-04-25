@@ -118,6 +118,8 @@ CREATE TABLE analysis_reports (
     overall_score FLOAT,
     relevance_score FLOAT,
     tips_json JSONB,
+    visual_insights_json JSONB,
+    delivery_insights_json JSONB,
     report_url VARCHAR(500),
     generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { transcriptAPI } from '../services/api'; // Preserving your API import
-import { Radar, Line } from 'react-chartjs-2';
+import { transcriptAPI, reportAPI } from '../services/api'; // Preserving your API import
+import { Radar, Line, Bar } from 'react-chartjs-2';
 import { motion } from 'framer-motion';
 import {
   Chart as ChartJS,
@@ -41,7 +41,7 @@ const getCategoryColor = (cat) => {
 };
 
 // --- Component: KPI Card ---
-const KPI = React.forwardRef(({ label, value, suffix, category, emoji, delay = 0 }, ref) => {
+const KPI = React.forwardRef(({ label, value, suffix, category, emoji, description, delay = 0 }, ref) => {
   const color = getCategoryColor(category);
 
   return (
@@ -75,10 +75,17 @@ const KPI = React.forwardRef(({ label, value, suffix, category, emoji, delay = 0
           {category}
         </div>
       )}
+      {description && (
+        <p style={{
+          fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '14px', marginBottom: 0, padding: '0 8px', textAlign: 'center', opacity: 0.8, lineHeight: 1.4
+        }}>
+          {description}
+        </p>
+      )}
     </motion.div>
   );
-  });
-  KPI.displayName = 'KPI';
+});
+KPI.displayName = 'KPI';
 
 // --- Component: Feedback Item ---
 const FeedbackItem = ({ category, severity, message, index }) => {
@@ -115,6 +122,7 @@ const MetricsDashboard = () => {
   const { submissionId } = useParams();
   const [metrics, setMetrics] = useState(null);
   const [transcriptData, setTranscriptData] = useState(null);
+  const [aiInsights, setAiInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analysisPending, setAnalysisPending] = useState(false);
   const containerRef = useRef(null);
@@ -153,7 +161,14 @@ const MetricsDashboard = () => {
       }
     };
 
-    if (submissionId) fetchData();
+    if (submissionId) {
+      fetchData();
+
+      // Fetch Modular AI Delivery Insights
+      reportAPI.getDeliveryInsights(submissionId)
+        .then(res => setAiInsights(res.insights || []))
+        .catch(err => console.error("Failed to load delivery AI insights", err));
+    }
     return () => { isMounted = false; };
   }, [submissionId]);
 
@@ -167,16 +182,21 @@ const MetricsDashboard = () => {
     if (!coreMetrics) return null;
 
     const fluency = coreMetrics.fluency_score || 0;
-    // Calculate a simple score for WPM (target ~130-150)
-    const wpmScore = Math.max(0, 100 - Math.abs((coreMetrics.speech_rate || 0) - 140));
+    // Calculate a simple score for WPM (target ~140)
+    const wpmScore = Math.max(0, 100 - Math.abs((coreMetrics.speech_rate || 0) - 140) * 0.8);
     // Calculate clarity (inverse of filler %)
     const clarityScore = Math.max(0, 100 - ((coreMetrics.filler_word_percentage || 0) * 10));
+    // Articulation rate score: target ~150-160 WPM
+    const articulationScore = Math.max(0, 100 - Math.abs((coreMetrics.articulation_rate || 150) - 150) * 0.8);
+    // Continuity based on low pause percentage
+    const pausePct = coreMetrics.pause_percentage || coreMetrics.pause_durations?.summary?.pause_percentage || 0;
+    const continuity = Math.max(0, 100 - (pausePct * 2));
 
     return {
       labels: ['Fluency', 'Pacing', 'Clarity', 'Articulation', 'Continuity'],
       datasets: [{
         label: 'Performance',
-        data: [fluency, wpmScore, clarityScore, (coreMetrics.articulation_rate * 15) || 70, fluency],
+        data: [fluency, wpmScore, clarityScore, articulationScore, continuity],
         backgroundColor: 'rgba(250, 204, 21, 0.2)', // Gold/Amber
         borderColor: '#fbbf24',
         borderWidth: 2,
@@ -202,34 +222,19 @@ const MetricsDashboard = () => {
       datasets: [{
         label: 'Words Per Minute',
         data: timeline.map(pt => pt.wpm),
-        borderColor: '#818cf8', // Indigo
-        borderWidth: 2,
-        pointRadius: 0,
-        tension: 0.4,
-        fill: true,
-        backgroundColor: 'rgba(129, 140, 248, 0.1)'
+        backgroundColor: 'rgba(129, 140, 248, 0.85)', // Indigo
+        borderRadius: 6,
+        borderWidth: 0,
       }]
     };
   }, [coreMetrics]);
 
-  const insights = useMemo(() => {
-    if (!coreMetrics) return [];
-    const arr = [];
-    if (coreMetrics.speech_rate) {
-      if (coreMetrics.speech_rate < 120) arr.push({ category: 'Pacing', severity: 'warning', message: 'Speaking pace is on the slow side. Aim for 130-150 wpm for most talks.' });
-      else if (coreMetrics.speech_rate > 170) arr.push({ category: 'Pacing', severity: 'warning', message: 'Pace is fast; add pauses to let points breathe.' });
-      else arr.push({ category: 'Pacing', severity: 'success', message: 'Pace sits in a comfortable range—keep it steady.' });
-    }
-    if (coreMetrics.filler_word_percentage !== undefined) {
-      if (coreMetrics.filler_word_percentage > 5) arr.push({ category: 'Clarity', severity: 'error', message: 'Filler usage is elevated; script transitions to reduce ums/ahs.' });
-      else arr.push({ category: 'Clarity', severity: 'success', message: 'Filler usage is low; keep concise phrasing.' });
-    }
-    if (coreMetrics.pause_percentage !== undefined) {
-      if (coreMetrics.pause_percentage > 20) arr.push({ category: 'Pauses', severity: 'info', message: 'High pause time—ensure pauses serve emphasis, not hesitation.' });
-      else arr.push({ category: 'Pauses', severity: 'success', message: 'Pause time is balanced; your rhythm feels controlled.' });
-    }
-    return arr;
-  }, [coreMetrics]);
+  // Replaced hardcoded insights with AI generated modular insights
+  const displayInsights = aiInsights && aiInsights.length > 0 ? aiInsights.map((msg, idx) => ({
+    category: idx === 0 ? 'Pacing' : idx === 1 ? 'Clarity' : 'Diction',
+    severity: idx % 2 === 0 ? 'success' : 'info',
+    message: msg
+  })) : [];
 
   if (loading) return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '60vh' }}>
@@ -315,7 +320,10 @@ const MetricsDashboard = () => {
           ref={scoreRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 10%, rgba(245,196,0,0.08), transparent 45%)', pointerEvents: 'none' }} />
-          <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase' }}>Speech Fluency Score</h3>
+          <h3 style={{ color: 'var(--text-muted)', fontSize: '1rem', letterSpacing: '2px', textTransform: 'uppercase', marginBottom: '8px' }}>Speech Fluency Score</h3>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: 0, padding: '0 10px', opacity: 0.8 }}>
+            Deductions based on the density of vocal fillers (um, uh).
+          </p>
           <div style={{
             fontSize: '6rem', fontWeight: 800, lineHeight: 1,
             color: getCategoryColor(coreMetrics.fluency_label || 'Fair'),
@@ -345,7 +353,12 @@ const MetricsDashboard = () => {
           ref={radarRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.06), transparent 60%)', pointerEvents: 'none' }} />
-          <h3 style={{ width: '100%', marginBottom: 20, fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Skill Balance</h3>
+          <div style={{ width: '100%', marginBottom: 16 }}>
+            <h3 style={{ marginBottom: 4, fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Skill Balance</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0, opacity: 0.9 }}>
+              Optimal speaking stretches outward. A larger, symmetrical web indicates robust, balanced delivery.
+            </p>
+          </div>
           <div style={{ height: '300px', width: '100%', display: 'flex', justifyContent: 'center' }}>
             {radarData && <Radar data={radarData} options={radarOptions} />}
           </div>
@@ -360,6 +373,7 @@ const MetricsDashboard = () => {
           suffix=" wpm"
           category={coreMetrics.speech_rate_label}
           emoji={coreMetrics.speech_rate_emoji}
+          description="Total words divided by video duration. Target: 130-160 WPM."
           ref={(el) => { kpiRefs.current[0] = el; }}
           delay={0.15}
         />
@@ -369,6 +383,7 @@ const MetricsDashboard = () => {
           suffix="%"
           category={coreMetrics.pause_percentage_label}
           emoji={coreMetrics.pause_percentage_emoji}
+          description="Percentage of track spent completely silent."
           ref={(el) => { kpiRefs.current[1] = el; }}
           delay={0.2}
         />
@@ -378,6 +393,7 @@ const MetricsDashboard = () => {
           suffix=""
           category={coreMetrics.filler_word_percentage > 5 ? 'High Usage' : 'Clean Speech'}
           emoji={coreMetrics.filler_word_percentage > 5 ? '⚠️' : '✅'}
+          description="Raw count of vocal crutches detected."
           ref={(el) => { kpiRefs.current[2] = el; }}
           delay={0.25}
         />
@@ -387,6 +403,7 @@ const MetricsDashboard = () => {
           suffix=""
           category={coreMetrics.pause_count_label}
           emoji={coreMetrics.pause_count_emoji}
+          description="Frequency of silent breath gaps per minute."
           ref={(el) => { kpiRefs.current[3] = el; }}
           delay={0.3}
         />
@@ -405,13 +422,18 @@ const MetricsDashboard = () => {
           ref={paceRef}
         >
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent, rgba(245,196,0,0.06))', pointerEvents: 'none' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h3 style={{ fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600 }}>Speaking Pace</h3>
-            <span style={{ fontSize: '0.8rem', color: '#9ca3af', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px' }}>Words Per Minute</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.2rem', color: 'var(--ink)', fontWeight: 600, margin: '0 0 6px 0' }}>Speaking Pace</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0, opacity: 0.9 }}>
+                Target pacing is 130-160 WPM. Watch how your conversational flow drives impact by phrase.
+              </p>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: '#9ca3af', background: 'rgba(255,255,255,0.05)', padding: '4px 8px', borderRadius: '4px', whiteSpace: 'nowrap' }}>Words Per Minute</span>
           </div>
           <div style={{ height: '250px', width: '100%' }}>
             {paceTimelineData ? (
-              <Line data={paceTimelineData} options={paceOptions} />
+              <Bar data={paceTimelineData} options={paceOptions} />
             ) : (
               <div className="flex h-full items-center justify-center text-gray-500">Not enough data for timeline</div>
             )}
@@ -456,20 +478,16 @@ const MetricsDashboard = () => {
       </div>
 
       {/* --- Row 4: AI Feedback --- */}
-      {insights.length > 0 && (
+      {displayInsights.length > 0 && (
         <motion.div
-          className="card"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-          style={{ background: 'var(--panel)', border: '1px solid var(--border)', borderRadius: 20, padding: 20 }}
+          // ... rest of component
           ref={insightsRef}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>Delivery Insights</h3>
             <span className="pill pill-gold" style={{ margin: 0 }}>Auto-generated</span>
           </div>
-          {insights.map((item, idx) => (
+          {displayInsights.map((item, idx) => (
             <FeedbackItem key={idx} category={item.category} severity={item.severity} message={item.message} index={idx} />
           ))}
         </motion.div>

@@ -273,20 +273,34 @@ def extract_time_series_data(pose_data: List[Dict], fps: float,
         anat = frame.get('anatomical_points') or {}
         landmarks = frame.get('landmarks') or {}
         
-        # CCA (using left ear as proxy)
-        if anat and landmarks and 'c7' in anat and 'left_ear' in landmarks:
+        # CCA (Use whatever ear is visible)
+        if anat and landmarks and 'c7' in anat:
             from . import posture_analyzer
-            cca = posture_analyzer.calculate_craniocervical_angle(landmarks['left_ear'], anat['c7'])
-            cca_angles.append(cca if cca else None)
+            ear_l = landmarks.get('left_ear')
+            ear_r = landmarks.get('right_ear')
+            
+            valid_ccas = []
+            if ear_l:
+                left_cca = posture_analyzer.calculate_craniocervical_angle(ear_l, anat['c7'])
+                if left_cca is not None:
+                    valid_ccas.append(left_cca)
+            if ear_r:
+                right_cca = posture_analyzer.calculate_craniocervical_angle(ear_r, anat['c7'])
+                if right_cca is not None:
+                    valid_ccas.append(right_cca)
+                    
+            if valid_ccas:
+                cca_angles.append(sum(valid_ccas) / len(valid_ccas))
+            else:
+                cca_angles.append(None)
         else:
-            cca = None
             cca_angles.append(None)
         
-        # Neck flexion
-        if anat and 'head' in anat and 'c7' in anat and 'mid_hip' in anat:
+        # Neck flexion (Resilient to missing mid_hip/waist-up shots)
+        if anat and 'head' in anat and 'c7' in anat:
             from . import posture_analyzer
-            flexion = posture_analyzer.calculate_neck_flexion(anat['head'], anat['c7'], anat['mid_hip'])
-            neck_flexion_angles.append(flexion if flexion else None)
+            flexion = posture_analyzer.calculate_neck_flexion(anat['head'], anat['c7'])
+            neck_flexion_angles.append(flexion)
         else:
             flexion = None
             neck_flexion_angles.append(None)
@@ -320,10 +334,11 @@ def extract_time_series_data(pose_data: List[Dict], fps: float,
         
         # Verbose logging and frame saving every 100 frames
         if idx % 100 == 0:
+            _last_cca = cca_angles[-1] if cca_angles else None
             logger.debug(f"\n--- Frame {idx} (t={frame['timestamp']:.2f}s) ---")
             logger.debug(f"  Pose detected: {landmarks is not None and len(landmarks) > 0}")
-            if cca is not None:
-                logger.debug(f"  Craniocervical Angle: {cca:.1f}°")
+            if _last_cca is not None:
+                logger.debug(f"  Craniocervical Angle: {_last_cca:.1f}°")
             if flexion is not None:
                 logger.debug(f"  Neck Flexion: {flexion:.1f}°")
             if centroid_x is not None:
@@ -336,7 +351,7 @@ def extract_time_series_data(pose_data: List[Dict], fps: float,
             # Save annotated frame if debug directory provided
             if debug_dir and video_path:
                 save_debug_frame(video_path, idx, frame, landmarks, anat, 
-                               cca, flexion, centroid_x, centroid_y, debug_dir)
+                               _last_cca, flexion, centroid_x, centroid_y, debug_dir)
     
     logger.debug(f"\nTime-series extraction complete: {len(timestamps)} frames")
     logger.debug(f"  CCA detected: {sum(1 for x in cca_angles if x is not None)}/{len(cca_angles)} frames")

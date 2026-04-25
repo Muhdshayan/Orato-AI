@@ -826,8 +826,10 @@ def _enrich_with_scraped_pages(documents: List[Dict[str, str]]) -> List[Dict[str
 def _search_tavily(query: str) -> List[Dict[str, str]]:
     client = _get_tavily()
     if client is None:
+        logger.warning("Tavily client is None; check if TAVILY_API_KEY is set")
         return []
     try:
+        logger.info("Searching Tavily for query: %r", query)
         resp = client.search(query=query, search_depth="basic", max_results=config.MAX_SEARCH_RESULTS, include_answer=True)
         docs: List[Dict[str, str]] = []
         if resp.get("answer"):
@@ -852,6 +854,7 @@ def _search_duckduckgo(query: str) -> List[Dict[str, str]]:
             from duckduckgo_search import DDGS
         with DDGS() as ddgs:
             try:
+                logger.info("Searching DuckDuckGo for query: %r", query)
                 results = list(
                     ddgs.text(
                         query,
@@ -1103,9 +1106,11 @@ def gather_evidence(claims: List[str], topic: str) -> List[Dict[str, str]]:
         })
 
     logger.info(
-        "gather_evidence: %d unique docs collected (%d web + Wikipedia)",
-        len(unique), len(unique),
+        "gather_evidence: %d unique docs collected (from %d queries)",
+        len(unique), len(queries)
     )
+    if not unique:
+        logger.warning("gather_evidence found ZERO documents for %d queries", len(queries))
     return _enrich_with_scraped_pages(unique)
 
 
