@@ -1,0 +1,19 @@
+.beams-bg {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: -2;
+  opacity: 0.9;
+}
+
+.beams-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+[data-theme="light"] .beams-bg {
+  opacity: 0.78;
+}

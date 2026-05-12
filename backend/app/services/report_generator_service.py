@@ -49,6 +49,43 @@ class ReportGeneratorService:
         # Define modern JSON output parser
         self.output_parser = JsonOutputParser(pydantic_object=FeedbackModel)
 
+    def _as_number(self, value, default: float = 0.0) -> float:
+        """Safely coerce DB/JSON values to float."""
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _metric_for_prompt(self, value, decimals: int = 1):
+        """Return rounded numeric metric for prompt, or 'N/A' when unavailable."""
+        if value is None:
+            return "N/A"
+        try:
+            return round(float(value), decimals)
+        except (TypeError, ValueError):
+            return "N/A"
+
+    def _normalize_feedback(self, feedback: Any) -> dict:
+        """Convert parser output into a plain JSON-serializable dict."""
+        if feedback is None:
+            return {}
+
+        if isinstance(feedback, dict):
+            return feedback
+
+        if hasattr(feedback, "model_dump"):
+            return feedback.model_dump()
+
+        if hasattr(feedback, "dict"):
+            return feedback.dict()
+
+        try:
+            return dict(feedback)
+        except Exception:
+            return {"raw": str(feedback)}
+
     async def generate_report(self, submission_id: str) -> Dict[str, Any]:
         """
         Aggregates data, calculates score, and prompts LLM for custom report.
@@ -66,6 +103,7 @@ class ReportGeneratorService:
 
         # 3. Generate LLM Feedback
         feedback = await self._generate_ai_feedback(speech_data, visual_data, content_data, cumulative_score)
+        feedback = self._normalize_feedback(feedback)
 
         # 4. Store in Database
         report_id = await self._store_report(submission_id, cumulative_score, feedback)
@@ -79,12 +117,12 @@ class ReportGeneratorService:
 
     def _calculate_cumulative_score(self, speech: dict, visual: dict, content: dict) -> float:
         """Weighted aggregation logic."""
-        s_score = speech.get("fluency_score", 50) if speech else 50
-        v_score = visual.get("overall_score", 50) if visual else 50
-        c_score = content.get("overall_score", 0) if content else 0
+        s_score = self._as_number(speech.get("fluency_score") if speech else None, 50.0)
+        v_score = self._as_number(visual.get("overall_score") if visual else None, 50.0)
+        c_score = self._as_number(content.get("overall_score") if content else None, 0.0)
         
         # Scale content score to 0-100 if it isn't (assuming it might be 0-1 from some modules)
-        if c_score <= 1.0 and c_score > 0:
+        if 0 < c_score <= 1.0:
             c_score *= 100
 
         weighted_score = (s_score * 0.35) + (v_score * 0.35) + (c_score * 0.30)
@@ -148,6 +186,23 @@ class ReportGeneratorService:
         }
 
         try:
+            # Prepare inputs with null-safe rounding for cleaner internal analysis
+            content_score = self._as_number(content.get("overall_score") if content else None, 0.0)
+            if 0 < content_score <= 1.0:
+                content_score *= 100
+
+            inputs = {
+                "final_score": self._metric_for_prompt(final_score, 1),
+                "wpm": self._metric_for_prompt(speech.get("speech_rate") if speech else None, 1),
+                "filler_pct": self._metric_for_prompt(speech.get("filler_word_percentage") if speech else None, 2),
+                "eye_contact": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("eye_contact_score"), 1),
+                "gpm": self._metric_for_prompt((visual or {}).get("gestures", {}).get("gesture_frequency", {}).get("gestures_per_minute"), 1),
+                "cca": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("cca_score"), 1),
+                "hand_vis": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("hand_visibility_score"), 1),
+                "content_score": self._metric_for_prompt(content_score, 1),
+                "format_instructions": format_instructions
+            }
+
             chain = prompt_template | self.llm | self.output_parser
             response = await chain.ainvoke(inputs)
             return response
@@ -370,13 +425,14 @@ class ReportGeneratorService:
         # Use UUID for report_id
         import uuid
         report_id = str(uuid.uuid4())
+        tips_payload = self._normalize_feedback(tips)
         query = """
             INSERT INTO analysis_reports (report_id, submission_id, overall_score, tips_json)
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (submission_id) DO UPDATE 
             SET overall_score = EXCLUDED.overall_score, tips_json = EXCLUDED.tips_json
         """
-        execute_query(query, (report_id, submission_id, score, json.dumps(tips)))
+        execute_query(query, (report_id, submission_id, score, json.dumps(tips_payload)))
         return report_id
 
 # Instantiate global service

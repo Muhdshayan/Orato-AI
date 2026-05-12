@@ -13,6 +13,7 @@ import AnalysisResults from './components/AnalysisResults';
 import LandingPage from './components/LandingPage';
 import SessionHistory from './components/SessionHistory';
 import Aurora from './components/Aurora';
+import Beams from './components/Beams';
 
 // Helper
 const RedirectToDashboard = () => {
@@ -24,6 +25,7 @@ function AppContent() {
   const { user, isAuthenticated, signout } = useAuth();
   const [submissionId, setSubmissionId] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem('orato_theme') || 'dark');
+  const [backgroundMode, setBackgroundMode] = useState(() => localStorage.getItem('orato_background_mode') || 'aurora');
 
   // Load session
   useEffect(() => {
@@ -39,7 +41,12 @@ function AppContent() {
     localStorage.setItem('orato_theme', theme);
   }, [theme]);
 
+  useEffect(() => {
+    localStorage.setItem('orato_background_mode', backgroundMode);
+  }, [backgroundMode]);
+
   const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  const toggleBackground = () => setBackgroundMode((prev) => (prev === 'aurora' ? 'beams' : 'aurora'));
 
   const auroraStops = theme === 'dark'
     ? ['#cee54e', '#f5c400', '#fee556']
@@ -66,12 +73,36 @@ function AppContent() {
     <Router>
       <div className="App">
         {/* GLOBAL BACKGROUND - The "Alive" Effect */}
-        <Aurora 
-          colorStops={auroraStops}
-          blend={theme === 'dark' ? 0.35 : 0.24}
-          amplitude={theme === 'dark' ? 1.05 : 0.62}
-          speed={0.6}
-        />
+        {backgroundMode === 'aurora' ? (
+          <Aurora 
+            colorStops={auroraStops}
+            blend={theme === 'dark' ? 0.35 : 0.24}
+            amplitude={theme === 'dark' ? 1.05 : 0.62}
+            speed={0.6}
+          />
+        ) : (
+          <Beams
+            beamWidth={2.3}
+            beamHeight={30}
+            beamNumber={31}
+            lightColor={theme === 'dark' ? '#ffffff' : '#b88a2a'}
+            speed={2}
+            noiseIntensity={theme === 'dark' ? 1.5 : 1.1}
+            scale={0.2}
+            rotation={30}
+            backgroundColor={theme === 'dark' ? '#060606' : '#f7f1e0'}
+          />
+        )}
+
+        <button
+          type="button"
+          className="background-toggle-btn"
+          onClick={toggleBackground}
+          aria-label="Toggle background mode"
+          title="Switch between Aurora and Beams background"
+        >
+          BG: {backgroundMode === 'aurora' ? 'Aurora' : 'Beams'}
+        </button>
 
         <Toaster 
           position="top-right" 
