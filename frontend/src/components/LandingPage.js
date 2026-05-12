@@ -209,14 +209,14 @@ const LandingPage = ({ theme = 'dark', onToggleTheme }) => {
             <button 
               onClick={() => navigate('/signup')} 
               className="btn btn-primary hero-primary-cta"
-              style={{ padding: '16px 28px', fontSize: '1.05rem' }}
+              style={{ padding: '14px 24px', fontSize: '0.95rem' }}
             >
               START ANALYSIS <ArrowRight size={20} />
             </button>
             <button 
               onClick={() => navigate('/signin')} 
               className="btn btn-secondary"
-              style={{ padding: '16px 24px', fontSize: '1.05rem' }}
+              style={{ padding: '14px 20px', fontSize: '0.92rem' }}
             >
               VIEW DEMO REPORT
             </button>
