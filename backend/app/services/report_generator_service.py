@@ -18,9 +18,6 @@ class FeedbackModel(BaseModel):
     detailed_analysis: Dict[str, str] = Field(description="In-depth analysis for 'Speech', 'Visual', and 'Content' categories")
     action_plan: List[str] = Field(description="3-5 highly specific, actionable steps for the next presentation")
 
-class ModularFeedbackModel(BaseModel):
-    insights: List[str] = Field(description="A list of 3-4 natural, professional coaching insights based on the provided metrics")
-
 class ReportGeneratorService:
     """
     Service to aggregate modular analysis data into a cumulative report 
@@ -49,6 +46,43 @@ class ReportGeneratorService:
         # Define modern JSON output parser
         self.output_parser = JsonOutputParser(pydantic_object=FeedbackModel)
 
+    def _as_number(self, value, default: float = 0.0) -> float:
+        """Safely coerce DB/JSON values to float."""
+        try:
+            if value is None:
+                return default
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _metric_for_prompt(self, value, decimals: int = 1):
+        """Return rounded numeric metric for prompt, or 'N/A' when unavailable."""
+        if value is None:
+            return "N/A"
+        try:
+            return round(float(value), decimals)
+        except (TypeError, ValueError):
+            return "N/A"
+
+    def _normalize_feedback(self, feedback: Any) -> dict:
+        """Convert parser output into a plain JSON-serializable dict."""
+        if feedback is None:
+            return {}
+
+        if isinstance(feedback, dict):
+            return feedback
+
+        if hasattr(feedback, "model_dump"):
+            return feedback.model_dump()
+
+        if hasattr(feedback, "dict"):
+            return feedback.dict()
+
+        try:
+            return dict(feedback)
+        except Exception:
+            return {"raw": str(feedback)}
+
     async def generate_report(self, submission_id: str) -> Dict[str, Any]:
         """
         Aggregates data, calculates score, and prompts LLM for custom report.
@@ -66,6 +100,7 @@ class ReportGeneratorService:
 
         # 3. Generate LLM Feedback
         feedback = await self._generate_ai_feedback(speech_data, visual_data, content_data, cumulative_score)
+        feedback = self._normalize_feedback(feedback)
 
         # 4. Store in Database
         report_id = await self._store_report(submission_id, cumulative_score, feedback)
@@ -79,12 +114,12 @@ class ReportGeneratorService:
 
     def _calculate_cumulative_score(self, speech: dict, visual: dict, content: dict) -> float:
         """Weighted aggregation logic."""
-        s_score = speech.get("fluency_score", 50) if speech else 50
-        v_score = visual.get("overall_score", 50) if visual else 50
-        c_score = content.get("overall_score", 0) if content else 0
+        s_score = self._as_number(speech.get("fluency_score") if speech else None, 50.0)
+        v_score = self._as_number(visual.get("overall_score") if visual else None, 50.0)
+        c_score = self._as_number(content.get("overall_score") if content else None, 0.0)
         
         # Scale content score to 0-100 if it isn't (assuming it might be 0-1 from some modules)
-        if c_score <= 1.0 and c_score > 0:
+        if 0 < c_score <= 1.0:
             c_score *= 100
 
         weighted_score = (s_score * 0.35) + (v_score * 0.35) + (c_score * 0.30)
@@ -132,196 +167,39 @@ class ReportGeneratorService:
             """
         )
         
-        # Prepare inputs with rounded values for cleaner internal analysis
-        inputs = {
-            "final_score": round(final_score, 1),
-            "wpm": round(speech.get("speech_rate", 0), 1) if speech else "N/A",
-            "filler_pct": round(speech.get("filler_word_percentage", 0), 2) if speech else "N/A",
-            # Bug 2 Fix: Use raw eye contact percentage, not the 0-100 score
-            "eye_contact": round(visual.get("head_pose", {}).get("eye_contact_percentage", 0), 1) if visual else "N/A",
-            "gpm": round(visual.get("gestures", {}).get("gesture_frequency", {}).get("gestures_per_minute", 0), 1) if visual else "N/A",
-            # Bug 6 Fix: Use raw CCA angle in degrees, not the 0-100 score
-            "cca": round(visual.get("posture", {}).get("craniocervical_angle", {}).get("mean", 0), 1) if visual else "N/A",
-            "hand_vis": round(visual.get("gestures", {}).get("hand_visibility", {}).get("any_hand_percentage", 0), 1) if visual else "N/A",
-            "content_score": round(content.get("overall_score", 0), 1) if content else "N/A",
-            "format_instructions": format_instructions
-        }
-
         try:
+            # Prepare inputs with null-safe rounding for cleaner internal analysis
+            content_score = self._as_number(content.get("overall_score") if content else None, 0.0)
+            if 0 < content_score <= 1.0:
+                content_score *= 100
+
+            inputs = {
+                "final_score": self._metric_for_prompt(final_score, 1),
+                "wpm": self._metric_for_prompt(speech.get("speech_rate") if speech else None, 1),
+                "filler_pct": self._metric_for_prompt(speech.get("filler_word_percentage") if speech else None, 2),
+                "eye_contact": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("eye_contact_score"), 1),
+                "gpm": self._metric_for_prompt((visual or {}).get("gestures", {}).get("gesture_frequency", {}).get("gestures_per_minute"), 1),
+                "cca": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("cca_score"), 1),
+                "hand_vis": self._metric_for_prompt((visual or {}).get("individual_scores", {}).get("hand_visibility_score"), 1),
+                "content_score": self._metric_for_prompt(content_score, 1),
+                "format_instructions": format_instructions
+            }
+
             chain = prompt_template | self.llm | self.output_parser
             response = await chain.ainvoke(inputs)
             return response
         except Exception as e:
-            logger.error(f"❌ LLM Report Generation Failed: {e}. Using rule-based fallback.")
-            return self._get_rule_based_fallback(speech, visual, content, final_score)
-
-    def _get_rule_based_fallback(self, speech: dict, visual: dict, content: dict, final_score: float) -> dict:
-        """Provides a simplified, threshold-based report when LLM is unavailable."""
-        praise = "You completed your session successfully."
-        weakness = "General performance is stable, but can be more dynamic."
-        plan = ["Practice your delivery for more consistency."]
-        
-        # Speech Heuristics
-        if speech:
-            rate = speech.get("speech_rate", 0)
-            fillers = speech.get("filler_word_percentage", 0)
-            if 115 <= rate <= 145: praise = "Your vocal pacing is steady and professional."
-            elif rate < 110: weakness = "Your delivery is slightly too slow, which may impact audience engagement."
-            elif rate > 155: weakness = "You are speaking quite fast; try adding meaningful pauses."
-            
-            if fillers > 4.1: plan.append("Try to replace filler words (ums/ahs) with silent pauses.")
-
-        # Visual Heuristics
-        if visual:
-            scores = visual.get("individual_scores", {})
-            eye = scores.get("eye_contact_score", 0)
-            hand = scores.get("hand_visibility_score", 0)
-            if 50 <= eye <= 70: praise = "You maintained excellent, non-intimidating eye contact."
-            elif eye < 40: weakness = "Increase your eye contact to build better trust with the audience."
-            if hand < 80: plan.append("Keep your hands visible to project transparency and confidence.")
-
-        return {
-            "praise": praise,
-            "biggest_weakness": weakness,
-            "action_plan": plan,
-            "overall_score": round(final_score, 1),
-            "is_fallback": True
-        }
-
-    async def generate_visual_insights(self, submission_id: str) -> List[str]:
-        """Generates 3-4 professional coaching insights for visual performance."""
-        # Check database first to prevent redundant LLM generation
-        query = "SELECT visual_insights_json FROM analysis_reports WHERE submission_id = %s"
-        record = execute_query(query, (submission_id,), fetch_one=True)
-        if record and record.get('visual_insights_json'):
-            data = record['visual_insights_json']
-            return json.loads(data) if isinstance(data, str) else data
-
-        visual = await self._get_visual_metrics(submission_id)
-        if not visual: return ["Visual data is still being processed."]
-
-        scores = visual.get("individual_scores", {})
-        gestures = visual.get("gestures", {})
-        
-        prompt = ChatPromptTemplate.from_template(
-            """You are a professional body language and kinesics coach. 
-            Analyze these visual metrics and provide 3-4 concise, professional, and natural-sounding coaching insights.
-            
-            METRICS:
-            - Eye Contact Score: {eye_contact}% (Target: 50-70% Connection Zone)
-            - Hand Visibility: {hand_vis}% (Target: >80% for trust)
-            - Posture Mastery: {posture}% (Target: >70% for authority)
-            - Gesture Frequency: {gpm} GPM (Target: 10-16 GPM for energy)
-            - Motion Burstiness: {burst} (Higher is more 'fidgety' or 'sudden')
-
-            REQUIREMENTS:
-            - Output ONLY a JSON list of 3-4 strings under the key 'insights'.
-            - NO raw decimals. Use rounded values (e.g. 78%).
-            - Tone: Constructive, authoritative, and human.
-            - Focus on the 'why' and how it affects the audience.
-            """
-        )
-        
-        parser = JsonOutputParser(pydantic_object=ModularFeedbackModel)
-        inputs = {
-            "eye_contact": round(scores.get("eye_contact_score", 0), 0),
-            "hand_vis": round(scores.get("hand_visibility_score", 0), 0),
-            "posture": round(scores.get("cca_score", 0), 0),
-            "gpm": round(gestures.get("gesture_frequency", {}).get("gestures_per_minute", 0), 1),
-            "burst": round(visual.get("motion_energy", {}).get("burstiness_metrics", {}).get("burstiness", 0), 2)
-        }
-        
-        try:
-            # Use raw LLM string output to avoid strict Pydantic parser failures
-            # when the LLM adds pre-amble text like "Here are the insights:"
-            from langchain_core.output_parsers import StrOutputParser
-            chain = prompt | self.llm | StrOutputParser()
-            raw = await chain.ainvoke(inputs)
-            
-            # Try strict JSON parse first, then fall back to regex extraction
-            insights = None
-            try:
-                parsed = json.loads(raw)
-                insights = parsed.get("insights", [])
-            except json.JSONDecodeError:
-                import re
-                match = re.search(r'"insights"\s*:\s*(\[.*?\])', raw, re.DOTALL)
-                if match:
-                    insights = json.loads(match.group(1))
-            
-            if not insights or not isinstance(insights, list):
-                insights = ["Keep maintaining your professional presence."]
-            
-            # Persist insights into the database
-            store_query = """
-                INSERT INTO analysis_reports (submission_id, visual_insights_json)
-                VALUES (%s, %s)
-                ON CONFLICT (submission_id) DO UPDATE 
-                SET visual_insights_json = EXCLUDED.visual_insights_json
-            """
-            execute_query(store_query, (submission_id, json.dumps(insights)))
-            return insights
-        except Exception as e:
-            logger.error(f"Visual Insights Failed: {e}")
-            return ["Hold steady posture to project authority.", "Maintain consistent hand visibility."]
-
-    async def generate_delivery_insights(self, submission_id: str) -> List[str]:
-        """Generates 3-4 professional coaching insights for speech delivery."""
-        # Check database first to prevent redundant LLM generation
-        query = "SELECT delivery_insights_json FROM analysis_reports WHERE submission_id = %s"
-        record = execute_query(query, (submission_id,), fetch_one=True)
-        if record and record.get('delivery_insights_json'):
-            data = record['delivery_insights_json']
-            return json.loads(data) if isinstance(data, str) else data
-
-        speech = await self._get_speech_metrics(submission_id)
-        if not speech: return ["Speech metrics are still being analyzed."]
-
-        prompt = ChatPromptTemplate.from_template(
-            """You are a world-class speech and vocal delivery coach. 
-            Analyze these delivery metrics and provide 3-4 concise, professional, and natural-sounding coaching insights.
-            
-            METRICS:
-            - Speaking Rate: {wpm} WPM (Target: 110-150 WPM)
-            - Filler Content: {filler}% (Target: <4.1% for fluency)
-            - Fluency Mastery: {fluency}/100
-            - Pause Strategy: {pause_pct}% time spent in silence
-            - Articulation Depth: {art}/100
-
-            REQUIREMENTS:
-            - Output ONLY a JSON list of 3-4 strings under the key 'insights'.
-            - NO raw decimals. Use rounded values (e.g. 135 WPM).
-            - Tone: Academic, encouraging, and narrative.
-            - Focus on the audience's ability to retain information.
-            """
-        )
-        
-        parser = JsonOutputParser(pydantic_object=ModularFeedbackModel)
-        inputs = {
-            "wpm": round(speech.get("speech_rate", 0), 0),
-            "filler": round(speech.get("filler_word_percentage", 0), 1),
-            "fluency": round(speech.get("fluency_score", 0), 0),
-            "pause_pct": round(speech.get("pause_percentage", 0), 1),
-            "art": max(0, round(100 - abs(speech.get("articulation_rate", 150) - 150) * 0.8, 0)) # Fixed 0-100 mathematical clamp
-        }
-        
-        try:
-            chain = prompt | self.llm | parser
-            res = await chain.ainvoke(inputs)
-            insights = res.get("insights", ["Maintain your current vocal rhythm."])
-            
-            # Persist insights into the database
-            store_query = """
-                INSERT INTO analysis_reports (submission_id, delivery_insights_json)
-                VALUES (%s, %s)
-                ON CONFLICT (submission_id) DO UPDATE 
-                SET delivery_insights_json = EXCLUDED.delivery_insights_json
-            """
-            execute_query(store_query, (submission_id, json.dumps(insights)))
-            return insights
-        except Exception as e:
-            logger.error(f"Delivery Insights Failed: {e}")
-            return ["Speak with clear intention and measured pacing.", "Minimize fillers to maximize clarity."]
+            logger.error(f"❌ LLM Report Generation Failed: {e}")
+            return {
+                "praise": "You completed your session successfully.",
+                "biggest_weakness": "Analysis error.",
+                "detailed_analysis": {
+                    "speech": "Speech analytics could not be fully generated in this pass.",
+                    "visual": "Visual analytics could not be fully generated in this pass.",
+                    "content": "Content relevance analytics could not be fully generated in this pass."
+                },
+                "action_plan": ["Review your raw metrics manually while we fix our AI coach."]
+            }
 
     async def _get_speech_metrics(self, submission_id: str) -> dict:
         query = """
@@ -370,13 +248,14 @@ class ReportGeneratorService:
         # Use UUID for report_id
         import uuid
         report_id = str(uuid.uuid4())
+        tips_payload = self._normalize_feedback(tips)
         query = """
             INSERT INTO analysis_reports (report_id, submission_id, overall_score, tips_json)
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (submission_id) DO UPDATE 
             SET overall_score = EXCLUDED.overall_score, tips_json = EXCLUDED.tips_json
         """
-        execute_query(query, (report_id, submission_id, score, json.dumps(tips)))
+        execute_query(query, (report_id, submission_id, score, json.dumps(tips_payload)))
         return report_id
 
 # Instantiate global service

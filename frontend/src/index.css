@@ -139,6 +139,46 @@ body::before {
   z-index: -1;
 }
 
+.background-toggle-btn {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 50;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 86%, var(--accent) 14%);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 9px 12px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+  transition: transform var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.background-toggle-btn:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border) 50%);
+  background: color-mix(in srgb, var(--panel) 78%, var(--accent) 22%);
+}
+
+.background-toggle-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 70%, white 30%);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .background-toggle-btn {
+    left: 12px;
+    bottom: 12px;
+    padding: 8px 11px;
+    font-size: 0.72rem;
+  }
+}
+
 [data-theme="light"] body {
   background-image:
     radial-gradient(760px at 18% 16%, rgba(218, 178, 67, 0.1), transparent 60%),
@@ -3542,10 +3582,10 @@ input.form-input:focus {
 .landing-hero-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr);
   align-items: center;
-  gap: clamp(24px, 4vw, 44px);
-  padding: 56px 24px 86px;
+  gap: clamp(24px, 3.2vw, 38px);
+  padding: 44px 24px 72px;
   max-width: 1280px;
   margin: 0 auto;
   width: 100%;
@@ -3553,6 +3593,7 @@ input.form-input:focus {
 
 .hero-left-column {
   min-width: 0;
+  max-width: 760px;
 }
 
 .hero-right-column {
@@ -3562,33 +3603,84 @@ input.form-input:focus {
 }
 
 .hero-main-title {
-  font-size: clamp(2.8rem, 5.4vw, 4.6rem);
-  font-weight: 760;
-  line-height: 1.08;
-  max-width: 760px;
+  font-size: clamp(2.3rem, 4.6vw, 3.95rem);
+  font-weight: 740;
+  line-height: 1.06;
+  max-width: 15.5ch;
   margin: 0;
-  padding: 22px 0 16px;
-  letter-spacing: -0.015em;
+  padding: 18px 0 14px;
+  letter-spacing: -0.02em;
   color: #ffffff;
 }
 
 .hero-main-subtext {
-  font-size: 1rem;
+  font-size: 0.95rem;
   color: var(--text-secondary);
-  max-width: 600px;
-  margin: 0 0 24px;
-  line-height: 1.62;
+  max-width: 58ch;
+  margin: 0 0 20px;
+  line-height: 1.6;
 }
 
 .hero-main-title .text-gold {
-  font-weight: 740;
+  font-weight: 730;
 }
 
 .hero-main-actions {
   display: flex;
-  gap: 14px;
+  gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.hero-main-actions .hero-meta {
+  font-size: 0.84rem;
+  padding: 7px 11px;
+}
+
+.hero-main-actions .hero-meta strong {
+  font-size: 0.9rem;
+}
+
+.stats-grid {
+  margin-top: 20px;
+  gap: 12px;
+}
+
+.stat-card {
+  padding: 12px 14px;
+}
+
+.stat-value {
+  font-size: 1.28rem;
+}
+
+.stat-label,
+.stat-hint {
+  font-size: 0.82rem;
+}
+
+.hero-preview {
+  width: min(520px, 100%);
+  padding: clamp(14px, 2.4vw, 20px);
+  border-radius: 18px;
+}
+
+.hero-preview-score {
+  font-size: 2.05rem;
+}
+
+.hero-preview-pill,
+.hero-preview-line p {
+  font-size: 0.82rem;
+}
+
+.hero-preview-line {
+  grid-template-columns: 52px 1fr;
+  padding: 8px 9px;
+}
+
+.hero-meter-row label {
+  font-size: 0.76rem;
 }
 
 /* Unified glassmorphism surfaces for landing cards */
@@ -3775,12 +3867,16 @@ input.form-input:focus {
 @media (max-width: 980px) {
   .landing-hero-grid {
     grid-template-columns: 1fr;
-    padding-top: 34px;
+    padding-top: 30px;
     gap: 24px;
   }
 
   .hero-right-column {
     justify-content: flex-start;
+  }
+
+  .hero-main-title {
+    max-width: 18ch;
   }
 }
 
