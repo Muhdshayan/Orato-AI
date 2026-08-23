@@ -170,7 +170,7 @@ class VideoService:
             clip = VideoFileClip(video_path)
             
             # Generate Splits
-            clip.write_videofile(output_video, audio=False, verbose=False, logger=None)
+            clip.write_videofile(output_video, audio=False, verbose=False, logger=None, preset="ultrafast", threads=4)
             if clip.audio:
                 clip.audio.write_audiofile(output_audio, verbose=False, logger=None)
             clip.close()
@@ -341,7 +341,7 @@ class VideoService:
 
             # 3) Split into video (no audio) and audio-only wav
             print(f"🔍 Writing video file: {output_video_path}")
-            clip.write_videofile(output_video_path, audio=False, verbose=False, logger=None)
+            clip.write_videofile(output_video_path, audio=False, verbose=False, logger=None, preset="ultrafast", threads=4)
             
             print(f"🔍 Writing audio file: {output_audio_path}")
             clip.audio.write_audiofile(output_audio_path, verbose=False, logger=None)

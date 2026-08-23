@@ -156,7 +156,7 @@ HAND_MIN_TRACKING_CONFIDENCE = 0.5
 # ============================================================================
 
 # Frame sampling - process every Nth frame for efficiency
-FRAME_SKIP = 1  # Process every frame (set to 2 for every other frame)
+FRAME_SKIP = 5  # Process every 5th frame for performance (6fps on 30fps video)
 
 # Temporal window for moving averages
 TEMPORAL_WINDOW_SECONDS = 5.0  # 5-second sliding window
